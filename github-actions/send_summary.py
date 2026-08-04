@@ -39,11 +39,22 @@ def main():
     for i, n in enumerate(resp, 1):
         s = (n.get("sentimento") or "NEUTRA").upper()
         emoji = {"POSITIVA": "[POSITIVA]", "NEGATIVA": "[NEGATIVA]", "NEUTRA": "[NEUTRA]"}.get(s, "[NEUTRA]")
+        # mostra a URL de forma clara (rotulo + link). Tenta extrair a fonte
+        # real do Google News (parametro url=) quando existir.
+        link = n.get("link", "") or ""
+        real = ""
+        if "url=" in link:
+            import urllib.parse as _up
+            try:
+                real = _up.unquote(link.split("url=", 1)[1].split("&")[0])
+            except Exception:
+                real = ""
+        url_mostrar = real or link
         blocos.append(
             f"{i}. {n.get('title','')}\n"
             f" Veiculo: {n.get('source','') or 'desconhecido'}\n"
             f" {n.get('quando','')}\n"
-            f" {n.get('link','')}\n"
+            f" URL: {url_mostrar}\n"
             f"{emoji} Sentimento: {s}"
         )
     cab = f" RESUMO DIARIO DE NOTICIAS ({dia})\n Total: {len(resp)} noticia(s)\n"
