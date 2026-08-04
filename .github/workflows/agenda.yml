@@ -1,0 +1,68 @@
+name: Missao Gilberto - Monitor Noticias Kenneth
+
+on:
+  schedule:
+    # BRT = UTC-3 (sem DST). 05:00 / 05:30 / 06:00 BRT = 08:00 / 08:30 / 09:00 UTC.
+    - cron: "0 8 * * *"    # 05:00 BRT - monitorar Google News (dia anterior)
+    - cron: "30 8 * * *"   # 05:30 BRT - analise de sentimento (Hy3 free / lexico)
+    - cron: "0 9 * * *"    # 06:00 BRT - enviar resumo via Telegram
+  workflow_dispatch:       # permite rodar manualmente pela aba Actions (roda os 3)
+
+permissions:
+  contents: read
+
+jobs:
+  monitor:
+    if: github.event.schedule == '0 8 * * *' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: github-actions
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Monitorar
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: python monitor.py
+
+  sentiment:
+    if: github.event.schedule == '30 8 * * *' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: github-actions
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Sentimento
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_MODEL: ${{ secrets.LLM_MODEL }}
+        run: python sentiment.py
+
+  send:
+    if: github.event.schedule == '0 9 * * *' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: github-actions
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Enviar resumo
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          TG_TOKEN: ${{ secrets.TG_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+        run: python send_summary.py

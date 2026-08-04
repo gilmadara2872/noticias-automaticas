@@ -1,0 +1,2 @@
+# Nenhuma dependencia externa: os scripts usam soh a biblioteca padrao do Python (urllib, xml, json).
+# Deixado em branco de proposito.
