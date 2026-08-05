@@ -83,17 +83,27 @@ def baixa_texto(url):
     return re.sub(r"<[^>]+>", " ", html)
 
 
-def relevante(titulo, keyword, fonte=""):
-    """FILTRO: aceita a noticia so se a keyword aparecer no TITULO ou,
-    de forma verificada, no CORPO da materia. Muitas materias citam o
-    cliente como especialista sem por o nome no titulo - por isso lemos
-    o corpo. Se nao der pra confirmar, DESCARTA (evita noticia aleatoria)."""
-    if cita(titulo, keyword):
-        return True
+def triagem(titulo, keyword, fonte=""):
+    """FILTRO. Devolve (aceita, url_real).
+
+    A busca ja e por frase exata, entao o feed vem pequeno e quase todo
+    pertinente. Aqui confirmamos lendo a materia: muitas citam o cliente
+    como especialista sem por o nome no titulo.
+
+    Regra: cita no titulo -> aceita. Cita no corpo -> aceita.
+    Corpo baixado e NAO cita -> descarta (era a origem das aleatorias).
+    Corpo inacessivel (captcha/timeout) -> ACEITA. Fail-open proposital:
+    e melhor uma noticia a mais que o cliente descarta em 2s do que um
+    monitoramento que emudece sozinho quando a rede aperta."""
     url = resolve_url(titulo, fonte)
+    if cita(titulo, keyword):
+        return True, url
     if not url:
-        return False
-    return cita(baixa_texto(url), keyword)
+        return True, None            # nao deu pra resolver -> nao descarta
+    texto = baixa_texto(url)
+    if not texto:
+        return True, url             # nao deu pra ler -> nao descarta
+    return cita(texto, keyword), url
 
 # Janela do FILTRO em dias: noticias publicadas ate N dias atras sao salvas.
 # (O Google com when:2d so devolve ~2 dias, mas o filtro garante o acumulo
@@ -157,10 +167,9 @@ def main():
                     fonte = talvez_fonte
             # FILTRO DE RELEVANCIA: descarta noticia que nao cita a keyword.
             # Resolve tambem a URL real do veiculo (o link do Google e opaco).
-            real = resolve_url(t, fonte)
+            aceita, real = triagem(t, kw, fonte)
             time.sleep(2)  # gentileza com o DuckDuckGo (evita rate-limit)
-            texto = baixa_texto(real) if real else ""
-            if not (cita(t, kw) or cita(texto, kw)):
+            if not aceita:
                 print(f"  [descartada] {t[:60]}")
                 continue
             coletados.append({
