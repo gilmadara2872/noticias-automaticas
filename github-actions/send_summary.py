@@ -1,11 +1,21 @@
 #!/usr/bin/env python3
 # 06:00 BRT - Le do Supabase as noticias do DIA ALVO (com sentimento) e envia
 # o resumo via Telegram para TG_CHAT_ID. E a UNICA mensagem do dia.
+#
+# O resumo cobre TODAS as palavras-chave monitoradas: as que tiveram noticia
+# aparecem detalhadas; as que nao tiveram sao listadas como "sem noticias",
+# para o cliente saber que o robo olhou e nao achou (silencio nunca e omissao).
+import os
 from datetime import datetime, timedelta, timezone
 
 import common
 
 BRT = timezone(timedelta(hours=-3))
+
+# Mesma lista do monitor.py: vem do segredo KEYWORDS (separado por ";").
+DEFAULT_KEYWORDS = ["Cliente Nome", "Marca A", "Empresa B"]
+KEYWORDS = [k.strip() for k in os.environ.get("KEYWORDS", "").split(";") if k.strip()] \
+    or DEFAULT_KEYWORDS
 
 # Dia alvo do resumo:
 #   1 = ONTEM (dia anterior a execucao)  -> digest do dia que fechou
@@ -21,45 +31,68 @@ def main():
         - timedelta(days=RESUMO_DIAS_ATRAS)
     dia = alvo.strftime("%Y-%m-%d")
     st, resp = common.sb_select({
-        "select": "keyword,title,source,link,quando,sentimento",
+        "select": "keyword,title,source,link,quando,sentimento,checagem",
         "dia": "eq." + dia,
         "sentimento": "not.is.null",
         "order": "ts.desc",
         "limit": "50",
     })
-    if not resp:
-        print(f"select status={st}; sem noticias de {dia} ou erro.")
-        msg = (f" RESUMO DIARIO DE NOTICIAS ({dia})\n\n"
-               "Nenhuma noticia nova com analise de sentimento hoje.")
-        s, r = common.tg_send(msg)
-        print("envio status", s, r)
+    # a coluna 'checagem' e opcional: se ainda nao existe, refaz sem ela
+    if st == 400 and "checagem" in str(resp):
+        st, resp = common.sb_select({
+            "select": "keyword,title,source,link,quando,sentimento",
+            "dia": "eq." + dia,
+            "sentimento": "not.is.null",
+            "order": "ts.desc",
+            "limit": "50",
+        })
+    if not isinstance(resp, list):
+        print(f"select status={st}; erro ao ler o banco: {resp}")
+        common.tg_send(f" RESUMO DIARIO ({dia})\n\n"
+                       "Nao foi possivel ler o banco de noticias hoje. "
+                       "O monitoramento precisa de atencao.")
         return
 
-    blocos = []
-    for i, n in enumerate(resp, 1):
-        s = (n.get("sentimento") or "NEUTRA").upper()
-        emoji = {"POSITIVA": "[POSITIVA]", "NEGATIVA": "[NEGATIVA]", "NEUTRA": "[NEUTRA]"}.get(s, "[NEUTRA]")
-        # mostra a URL de forma clara (rotulo + link). Tenta extrair a fonte
-        # real do Google News (parametro url=) quando existir.
-        link = n.get("link", "") or ""
-        real = ""
-        if "url=" in link:
-            import urllib.parse as _up
-            try:
-                real = _up.unquote(link.split("url=", 1)[1].split("&")[0])
-            except Exception:
-                real = ""
-        url_mostrar = real or link
-        blocos.append(
-            f"{i}. {n.get('title','')}\n"
-            f" Veiculo: {n.get('source','') or 'desconhecido'}\n"
-            f" {n.get('quando','')}\n"
-            f" URL: {url_mostrar}\n"
-            f"{emoji} Sentimento: {s}"
-        )
-    cab = f" RESUMO DIARIO DE NOTICIAS ({dia})\n Total: {len(resp)} noticia(s)\n"
-    corpo = "\n\n------------------------\n\n".join(blocos)
-    texto = cab + "\n" + corpo
+    # agrupa por palavra-chave, preservando a ordem monitorada
+    por_kw = {k: [] for k in KEYWORDS}
+    for n in resp:
+        por_kw.setdefault(n.get("keyword", "?"), []).append(n)
+
+    com, sem = [], []
+    n_total = 0
+    for kw in por_kw:
+        itens = por_kw[kw]
+        if not itens:
+            sem.append(kw)
+            continue
+        linhas = [f"* {kw} - {len(itens)} noticia(s)"]
+        for n in itens:
+            n_total += 1
+            s = (n.get("sentimento") or "NEUTRA").upper()
+            aviso = ""
+            if n.get("checagem") == "nao_conferida":
+                aviso = "\n   (!) nao foi possivel confirmar a citacao - confira a materia"
+            linhas.append(
+                f"\n{n_total}. {n.get('title','')}\n"
+                f" Veiculo: {n.get('source','') or 'desconhecido'}\n"
+                f" {n.get('quando','')}\n"
+                f" URL: {n.get('link','')}\n"
+                f"[{s}] Sentimento: {s}{aviso}"
+            )
+        com.append("\n".join(linhas))
+
+    cab = (f" RESUMO DIARIO DE NOTICIAS ({dia})\n"
+           f" Total: {n_total} noticia(s) em {len(KEYWORDS)} termo(s) monitorado(s)\n")
+    partes_txt = [cab]
+    if com:
+        partes_txt.append("\n\n------------------------\n\n".join(com))
+    if sem:
+        partes_txt.append("SEM NOTICIAS HOJE:\n" +
+                          "\n".join(f"- {k}: nenhuma noticia encontrada" for k in sem))
+    if not com:
+        partes_txt.append("Nenhuma noticia nova encontrada hoje "
+                          "para os termos monitorados.")
+    texto = "\n\n".join(partes_txt)
 
     partes, resto = [], texto
     while len(resto) > MAX:

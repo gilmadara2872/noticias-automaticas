@@ -84,26 +84,27 @@ def baixa_texto(url):
 
 
 def triagem(titulo, keyword, fonte=""):
-    """FILTRO. Devolve (aceita, url_real).
+    """FILTRO. Devolve (aceita, url_real, checagem).
 
-    A busca ja e por frase exata, entao o feed vem pequeno e quase todo
-    pertinente. Aqui confirmamos lendo a materia: muitas citam o cliente
-    como especialista sem por o nome no titulo.
+    'checagem' diz COMO a noticia entrou, para o resumo poder avisar o
+    cliente quando algo entrou sem confirmacao:
+      'titulo'      - keyword no titulo (certeza, sem precisar de rede)
+      'corpo'       - keyword confirmada no texto da materia (certeza)
+      'nao_conferida' - nao deu pra abrir a materia (captcha/timeout)
 
-    Regra: cita no titulo -> aceita. Cita no corpo -> aceita.
     Corpo baixado e NAO cita -> descarta (era a origem das aleatorias).
-    Corpo inacessivel (captcha/timeout) -> ACEITA. Fail-open proposital:
-    e melhor uma noticia a mais que o cliente descarta em 2s do que um
-    monitoramento que emudece sozinho quando a rede aperta."""
+    Corpo inacessivel -> ACEITA e MARCA. Fail-open, mas nunca silencioso:
+    e melhor uma noticia a mais, sinalizada, do que um monitoramento que
+    emudece sozinho quando a rede aperta."""
     url = resolve_url(titulo, fonte)
     if cita(titulo, keyword):
-        return True, url
+        return True, url, "titulo"
     if not url:
-        return True, None            # nao deu pra resolver -> nao descarta
+        return True, None, "nao_conferida"
     texto = baixa_texto(url)
     if not texto:
-        return True, url             # nao deu pra ler -> nao descarta
-    return cita(texto, keyword), url
+        return True, url, "nao_conferida"
+    return cita(texto, keyword), url, "corpo"
 
 # Janela do FILTRO em dias: noticias publicadas ate N dias atras sao salvas.
 # (O Google com when:2d so devolve ~2 dias, mas o filtro garante o acumulo
@@ -167,11 +168,13 @@ def main():
                     fonte = talvez_fonte
             # FILTRO DE RELEVANCIA: descarta noticia que nao cita a keyword.
             # Resolve tambem a URL real do veiculo (o link do Google e opaco).
-            aceita, real = triagem(t, kw, fonte)
+            aceita, real, checagem = triagem(t, kw, fonte)
             time.sleep(2)  # gentileza com o DuckDuckGo (evita rate-limit)
             if not aceita:
                 print(f"  [descartada] {t[:60]}")
                 continue
+            if checagem == "nao_conferida":
+                print(f"  [NAO CONFERIDA] {t[:55]} (materia inacessivel)")
             coletados.append({
                 "keyword": kw,
                 "title": t,
@@ -180,6 +183,7 @@ def main():
                 "dia": dt.strftime("%Y-%m-%d"),
                 "quando": dt.strftime("%d/%m/%Y %H:%M"),
                 "ts": int(ts * 1000),
+                "checagem": checagem,
             })
 
     # dedup por link (nao repete nem no proprio lote)

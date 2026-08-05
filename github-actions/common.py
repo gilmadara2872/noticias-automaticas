@@ -42,14 +42,23 @@ def sb_select(params: dict):
 
 
 def sb_upsert(rows: list):
+    """Insere ignorando duplicados por link.
+    O nome correto do modo e 'ignore-duplicates'; escrever 'ignore' faz o
+    Supabase descartar a instrucao e devolver 409 (chave duplicada) toda vez
+    que a noticia ja existia - erro falso que escondia problema de verdade.
+
+    Se a coluna opcional 'checagem' ainda nao existir no banco, reenvia sem
+    ela em vez de quebrar o job (42703 = coluna inexistente)."""
     url = f"{SUPABASE_URL}/rest/v1/{TABLE}?on_conflict=link"
-    return http(
-        "POST",
-        url,
-        {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}",
-         "Prefer": "resolution=ignore,return=minimal"},
-        rows,
-    )
+    hdr = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}",
+           "Prefer": "resolution=ignore-duplicates,return=minimal"}
+    st, resp = http("POST", url, hdr, rows)
+    if st == 400 and "42703" in str(resp) and "checagem" in str(resp):
+        print("  aviso: coluna 'checagem' ainda nao existe no banco; "
+              "gravando sem ela (rode o ALTER TABLE para ativar o aviso).")
+        limpo = [{k: v for k, v in r.items() if k != "checagem"} for r in rows]
+        st, resp = http("POST", url, hdr, limpo)
+    return st, resp
 
 
 def sb_update_sentimento(link: str, sentimento: str):
