@@ -71,16 +71,26 @@ def sb_upsert(rows: list):
     return st, resp
 
 
-def sb_update_sentimento(link: str, sentimento: str):
+def sb_update_sentimento(link: str, sentimento: str, conteudo: str = None):
+    """Grava o sentimento da noticia e, quando informado, o TEXTO INTEGRAL
+    da materia lida as 05:30 (coluna opcional 'conteudo').
+
+    Se a coluna 'conteudo' ainda nao existir no banco, regrava so o
+    sentimento em vez de quebrar o job (PGRST204 / 42703)."""
     enc = urllib.parse.quote(link, safe="")
     url = f"{SUPABASE_URL}/rest/v1/{TABLE}?link=eq.{enc}"
-    return http(
-        "PATCH",
-        url,
-        {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}",
-         "Prefer": "return=representation"},
-        {"sentimento": sentimento},
-    )
+    hdr = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}",
+           "Prefer": "return=representation"}
+    body = {"sentimento": sentimento}
+    if conteudo is not None:
+        body["conteudo"] = conteudo
+    st, resp = http("PATCH", url, hdr, body)
+    if conteudo is not None and st in (400, 404) and "conteudo" in str(resp) and \
+            ("PGRST204" in str(resp) or "42703" in str(resp)):
+        print("  aviso: coluna 'conteudo' ainda nao existe no banco; "
+              "gravando so o sentimento (rode o ALTER TABLE para guardar o texto).")
+        st, resp = http("PATCH", url, hdr, {"sentimento": sentimento})
+    return st, resp
 
 
 # ---------- Telegram ----------
