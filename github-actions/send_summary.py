@@ -10,7 +10,7 @@ BRT = timezone(timedelta(hours=-3))
 # Dia alvo do resumo:
 #   1 = ONTEM (dia anterior a execucao)  -> digest do dia que fechou
 #   0 = HOJE
-# Kenneth quer "somente as noticias que sairam no dia" (estritamente esse dia).
+# Cliente quer "somente as noticias que sairam no dia" (estritamente esse dia).
 RESUMO_DIAS_ATRAS = 1
 
 MAX = 4000

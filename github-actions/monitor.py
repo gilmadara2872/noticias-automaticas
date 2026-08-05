@@ -12,9 +12,10 @@ from email.utils import parsedate_to_datetime
 
 import common
 
-# Palavras-chave NA ORDEM EXATA pedida. As duas grafias de Kenneth sao
-# monitoradas separadamente de proposito. Aspas = frase exata (menos ruido).
-KEYWORDS = ["Kenneth Corrêa", "Kenneth Correa", "MedGuias", "80 20 Marketing"]
+# Palavras-chave monitoradas (PLACEHOLDERS anonimizados para o portfolio).
+# Troque pelos termos reais do cliente quando for usar em producao.
+# Aspas = frase exata (menos ruido).
+KEYWORDS = ["Cliente Nome", "Cliente Nome", "Marca A", "Empresa B"]
 
 # Janela do FILTRO em dias: noticias publicadas ate N dias atras sao salvas.
 # (O Google com when:2d so devolve ~2 dias, mas o filtro garante o acumulo

@@ -1,4 +1,4 @@
-name: Missao Gilberto - Monitor Noticias Kenneth
+name: Monitor de Noticias - Pipeline Automatizado (Cliente)
 
 on:
   schedule:

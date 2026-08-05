@@ -1,0 +1,4 @@
+# Arquivos de dados/saida temporarios (podem conter noticias) - nao versionar
+monitor_out.json
+*.local.json
+.env
