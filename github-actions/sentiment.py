@@ -48,7 +48,11 @@ def lexicon_sentiment(title, content):
 
 
 def llm_sentiment(title, content):
+    """Classifica pela IA. Devolve None se nao der - mas NUNCA em silencio:
+    todo motivo de falha e impresso, senao a queda para o lexico passa
+    despercebida e o resultado parece pior sem explicacao."""
     if not common.LLM_API_KEY:
+        print("    IA nao usada: LLM_API_KEY nao configurada")
         return None
     # O modelo tem limite de tamanho no pedido, entao aqui vai um recorte
     # generoso (30 mil caracteres cobre materia jornalistica inteira).
@@ -63,15 +67,19 @@ def llm_sentiment(title, content):
     st, resp = common.http(
         "POST", common.LLM_BASE_URL + "/chat/completions",
         {"Authorization": f"Bearer {common.LLM_API_KEY}",
-         "Content-Type": "application/json"}, body, timeout=45)
-    if st == 200 and resp:
-        try:
-            txt = resp["choices"][0]["message"]["content"].strip().upper()
-            for s in ("POSITIVA", "NEGATIVA", "NEUTRA"):
-                if s in txt:
-                    return s
-        except Exception:
-            pass
+         "Content-Type": "application/json"}, body, timeout=180)
+    if st != 200:
+        print(f"    IA falhou (HTTP {st}): {str(resp)[:150]}")
+        return None
+    try:
+        txt = resp["choices"][0]["message"]["content"].strip().upper()
+    except Exception as e:
+        print(f"    IA respondeu em formato inesperado: {e} | {str(resp)[:120]}")
+        return None
+    for s in ("POSITIVA", "NEGATIVA", "NEUTRA"):
+        if s in txt:
+            return s
+    print(f"    IA respondeu sem classificacao clara: {txt[:80]!r}")
     return None
 
 
@@ -104,9 +112,12 @@ def main():
             print(f"  {str(n['title'])[:50]} -> {sent} (mantido) "
                   f"({len(content)} chars lidos)")
         else:
-            sent = llm_sentiment(n["title"], content) \
-                or lexicon_sentiment(n["title"], content)
-            print(f"  {str(n['title'])[:50]} -> {sent} "
+            sent = llm_sentiment(n["title"], content)
+            metodo = "IA"
+            if not sent:
+                sent = lexicon_sentiment(n["title"], content)
+                metodo = "lexico (IA indisponivel)"
+            print(f"  {str(n['title'])[:50]} -> {sent} [via {metodo}] "
                   f"({len(content)} chars lidos)")
         # grava o sentimento E o texto integral da materia no banco
         s2, r2 = common.sb_update_sentimento(n["link"], sent, content)
