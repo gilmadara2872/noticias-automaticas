@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Painel de Notícias</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  body { font-family: system-ui, Arial, sans-serif; margin: 0; background: #0f1419; color: #e6e6e6; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 20px; }
+  h1 { font-size: 1.4rem; }
+  .cards { display: flex; gap: 16px; flex-wrap: wrap; }
+  .card { background: #1a2029; border-radius: 10px; padding: 16px; flex: 1; min-width: 280px; }
+  canvas { max-width: 100%; }
+  table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 0.85rem; }
+  th, td { text-align: left; padding: 8px; border-bottom: 1px solid #2a323d; vertical-align: top; }
+  th { color: #8ab4f8; }
+  a { color: #8ab4f8; word-break: break-all; }
+  .POSITIVA { color: #4ade80; }
+  .NEGATIVA { color: #f87171; }
+  .NEUTRA { color: #9ca3af; }
+  .meta { color: #8a93a0; font-size: 0.8rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Painel de Notícias</h1>
+  <p class="meta" id="atualizado">carregando…</p>
+  <div class="cards">
+    <div class="card"><h3>Sentimento</h3><canvas id="pizza"></canvas></div>
+    <div class="card"><h3>Notícias por dia</h3><canvas id="barras"></canvas></div>
+  </div>
+  <table id="tabela">
+    <thead>
+      <tr><th>Data/Hora</th><th>Veículo</th><th>Título</th><th>URL</th><th>Sentimento</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</div>
+<script>
+// Dados de leitura (chave ANON do Supabase - somente leitura, segura para expor)
+const SUPABASE_URL = "https://uirvzlxhuyaentizyden.supabase.co";
+const SUPABASE_ANON = "sb_publishable_PHRrS3orQQOVOAdW5jAO7g_2TDtz_OT";
+
+async function carregar() {
+  const url = `${SUPABASE_URL}/rest/v1/monitored_news?select=quando,source,title,link,sentimento,dia&order=ts.desc&limit=500`;
+  const resp = await fetch(url, { headers: { "apikey": SUPABASE_ANON, "Authorization": "Bearer " + SUPABASE_ANON } });
+  const rows = await resp.json();
+  desenhar(rows);
+}
+
+function desenhar(rows) {
+  document.getElementById("atualizado").textContent = "Atualizado em " + new Date().toLocaleString("pt-BR") + " — total: " + rows.length + " notícias";
+
+  // pizza de sentimento
+  const cont = { POSITIVA: 0, NEGATIVA: 0, NEUTRA: 0 };
+  const porDia = {};
+  rows.forEach(r => {
+    const s = (r.sentimento || "NEUTRA").toUpperCase();
+    cont[s] = (cont[s] || 0) + 1;
+    porDia[r.dia] = (porDia[r.dia] || 0) + 1;
+  });
+
+  new Chart(document.getElementById("pizza"), {
+    type: "doughnut",
+    data: { labels: ["Positiva", "Negativa", "Neutra"],
+      datasets: [{ data: [cont.POSITIVA, cont.NEGATIVA, cont.NEUTRA],
+        backgroundColor: ["#4ade80", "#f87171", "#9ca3af"] }] },
+    options: { plugins: { legend: { labels: { color: "#e6e6e6" } } } }
+  });
+
+  const dias = Object.keys(porDia).sort();
+  new Chart(document.getElementById("barras"), {
+    type: "bar",
+    data: { labels: dias,
+      datasets: [{ label: "Notícias", data: dias.map(d => porDia[d]),
+        backgroundColor: "#8ab4f8" }] },
+    options: { plugins: { legend: { labels: { color: "#e6e6e6" } } },
+      scales: { x: { ticks: { color: "#ccc" } }, y: { ticks: { color: "#ccc" }, beginAtZero: true } } }
+  });
+
+  // tabela
+  const tb = document.querySelector("#tabela tbody");
+  tb.innerHTML = "";
+  rows.forEach(r => {
+    const s = (r.sentimento || "NEUTRA").toUpperCase();
+    const tr = document.createElement("tr");
+    tr.innerHTML =
+      `<td>${r.quando || ""}</td>` +
+      `<td>${r.source || "desconhecido"}</td>` +
+      `<td>${r.title || ""}</td>` +
+      `<td>${r.link ? '<a href="' + r.link + '" target="_blank">abrir</a>' : ""}</td>` +
+      `<td class="${s}">${s}</td>`;
+    tb.appendChild(tr);
+  });
+}
+
+carregar();
+setInterval(carregar, 60000); // atualiza sozinho a cada 1 min
+</script>
+</body>
+</html>
