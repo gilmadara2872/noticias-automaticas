@@ -6,16 +6,94 @@ import json
 import os
 import urllib.request
 import urllib.parse
+import re
+import time
+import unicodedata
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 
 import common
 
-# Palavras-chave monitoradas (PLACEHOLDERS anonimizados para o portfolio).
-# Troque pelos termos reais do cliente quando for usar em producao.
+# Palavras-chave monitoradas.
+# Em producao vem do segredo KEYWORDS (lista separada por ";"), assim o repo
+# pode ser publico sem expor o nome do cliente. Sem o segredo, usa placeholders.
 # Aspas = frase exata (menos ruido).
-KEYWORDS = ["Cliente Nome", "Cliente Nome", "Marca A", "Empresa B"]
+DEFAULT_KEYWORDS = ["Cliente Nome", "Marca A", "Empresa B"]
+KEYWORDS = [k.strip() for k in os.environ.get("KEYWORDS", "").split(";") if k.strip()] \
+    or DEFAULT_KEYWORDS
+
+
+def normaliza(s):
+    """minusculas sem acento, para casar 'Correa' com 'Correa'."""
+    s = unicodedata.normalize("NFD", (s or "").lower())
+    return "".join(c for c in s if unicodedata.category(c) != "Mn")
+
+
+def cita(texto, keyword):
+    """True se o texto cita a keyword (todas as palavras dela, sem acento)."""
+    t = normaliza(texto)
+    return all(p in t for p in normaliza(keyword).split())
+
+
+def ddg_urls(query):
+    """Busca no DuckDuckGo HTML e devolve as URLs reais dos resultados."""
+    try:
+        data = urllib.parse.urlencode({"q": query}).encode()
+        req = urllib.request.Request(
+            "https://html.duckduckgo.com/html/", data=data,
+            headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) "
+                                   "AppleWebKit/537.36 Chrome/120 Safari/537.36"})
+        with urllib.request.urlopen(req, timeout=25) as r:
+            html = r.read().decode("utf-8", "ignore")
+    except Exception:
+        return []
+    out = []
+    for h in re.findall(r'href="([^"]+)"', html):
+        if h.startswith("//duckduckgo.com/l/?uddg="):
+            h = urllib.parse.unquote(re.search(r"uddg=([^&]+)", h).group(1))
+        if h.startswith("http") and "duckduckgo.com" not in h:
+            if h not in out:
+                out.append(h)
+    return out[:6]
+
+
+def resolve_url(titulo, fonte):
+    """O link do Google News nao expoe a URL do veiculo (pagina JS).
+    Reencontramos a materia pelo titulo no DuckDuckGo, preferindo o
+    resultado do proprio veiculo que o RSS informou."""
+    res = ddg_urls(titulo)
+    if not res:
+        return None
+    dom = normaliza(fonte).replace(" ", "")
+    for u in res:
+        if dom and dom.split(".")[0] in normaliza(u):
+            return u
+    return res[0]
+
+
+def baixa_texto(url):
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=25) as r:
+            html = r.read().decode("utf-8", "ignore")
+    except Exception:
+        return ""
+    html = re.sub(r"<(script|style)[^>]*>.*?</\1>", " ", html, flags=re.S | re.I)
+    return re.sub(r"<[^>]+>", " ", html)
+
+
+def relevante(titulo, keyword, fonte=""):
+    """FILTRO: aceita a noticia so se a keyword aparecer no TITULO ou,
+    de forma verificada, no CORPO da materia. Muitas materias citam o
+    cliente como especialista sem por o nome no titulo - por isso lemos
+    o corpo. Se nao der pra confirmar, DESCARTA (evita noticia aleatoria)."""
+    if cita(titulo, keyword):
+        return True
+    url = resolve_url(titulo, fonte)
+    if not url:
+        return False
+    return cita(baixa_texto(url), keyword)
 
 # Janela do FILTRO em dias: noticias publicadas ate N dias atras sao salvas.
 # (O Google com when:2d so devolve ~2 dias, mas o filtro garante o acumulo
@@ -77,10 +155,18 @@ def main():
                 t, talvez_fonte = t.rsplit(" - ", 1)
                 if not fonte:
                     fonte = talvez_fonte
+            # FILTRO DE RELEVANCIA: descarta noticia que nao cita a keyword.
+            # Resolve tambem a URL real do veiculo (o link do Google e opaco).
+            real = resolve_url(t, fonte)
+            time.sleep(2)  # gentileza com o DuckDuckGo (evita rate-limit)
+            texto = baixa_texto(real) if real else ""
+            if not (cita(t, kw) or cita(texto, kw)):
+                print(f"  [descartada] {t[:60]}")
+                continue
             coletados.append({
                 "keyword": kw,
                 "title": t,
-                "link": e["link"],
+                "link": real or e["link"],
                 "source": fonte,
                 "dia": dt.strftime("%Y-%m-%d"),
                 "quando": dt.strftime("%d/%m/%Y %H:%M"),

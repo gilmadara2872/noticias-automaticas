@@ -27,6 +27,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          KEYWORDS: ${{ secrets.KEYWORDS }}
         run: python monitor.py
 
   sentiment:
