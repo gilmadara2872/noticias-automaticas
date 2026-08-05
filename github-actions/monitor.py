@@ -3,7 +3,6 @@
 # Busca com when:2d e MANTE no banco todas as noticias dos ultimos N dias
 # (acumula para graficos; nunca apaga). Dedup por link (nao repete).
 import json
-import os
 import urllib.request
 import urllib.parse
 import re
@@ -15,13 +14,8 @@ from email.utils import parsedate_to_datetime
 
 import common
 
-# Palavras-chave monitoradas.
-# Em producao vem do segredo KEYWORDS (lista separada por ";"), assim o repo
-# pode ser publico sem expor o nome do cliente. Sem o segredo, usa placeholders.
-# Aspas = frase exata (menos ruido).
-DEFAULT_KEYWORDS = ["Cliente Nome", "Marca A", "Empresa B"]
-KEYWORDS = [k.strip() for k in os.environ.get("KEYWORDS", "").split(";") if k.strip()] \
-    or DEFAULT_KEYWORDS
+# Palavras-chave monitoradas: fonte unica em common.py (segredo KEYWORDS).
+KEYWORDS = common.KEYWORDS
 
 
 def normaliza(s):

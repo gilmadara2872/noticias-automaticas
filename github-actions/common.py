@@ -17,6 +17,13 @@ LLM_MODEL = os.environ.get("LLM_MODEL", "tencent/hy3:free")
 
 TABLE = "monitored_news"
 
+# Palavras-chave monitoradas. Em producao vem do segredo KEYWORDS (separadas
+# por ";"), assim o repo fica publico sem expor o nome do cliente.
+# Fonte unica: monitor.py coleta e send_summary.py resume a MESMA lista.
+DEFAULT_KEYWORDS = ["Cliente Nome", "Marca A", "Empresa B"]
+KEYWORDS = [k.strip() for k in os.environ.get("KEYWORDS", "").split(";") if k.strip()] \
+    or DEFAULT_KEYWORDS
+
 
 def http(method, url, headers=None, body=None, timeout=40):
     data = json.dumps(body).encode() if body is not None else None

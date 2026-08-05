@@ -5,17 +5,14 @@
 # O resumo cobre TODAS as palavras-chave monitoradas: as que tiveram noticia
 # aparecem detalhadas; as que nao tiveram sao listadas como "sem noticias",
 # para o cliente saber que o robo olhou e nao achou (silencio nunca e omissao).
-import os
 from datetime import datetime, timedelta, timezone
 
 import common
 
 BRT = timezone(timedelta(hours=-3))
 
-# Mesma lista do monitor.py: vem do segredo KEYWORDS (separado por ";").
-DEFAULT_KEYWORDS = ["Cliente Nome", "Marca A", "Empresa B"]
-KEYWORDS = [k.strip() for k in os.environ.get("KEYWORDS", "").split(";") if k.strip()] \
-    or DEFAULT_KEYWORDS
+# Mesma lista que o monitor coleta: fonte unica em common.py.
+KEYWORDS = common.KEYWORDS
 
 # Dia alvo do resumo:
 #   1 = ONTEM (dia anterior a execucao)  -> digest do dia que fechou
