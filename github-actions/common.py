@@ -42,10 +42,21 @@ def http(method, url, headers=None, body=None, timeout=40):
 
 
 # ---------- Supabase REST ----------
+def _hdr(**extra):
+    return {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}", **extra}
+
+
+def coluna_ausente(st, resp, coluna):
+    """True quando o banco recusou por NAO TER a coluna opcional informada.
+    PostgREST responde PGRST204 (schema cache); o Postgres cru, 42703.
+    Qualquer outro erro e problema de verdade e deve continuar aparecendo."""
+    s = str(resp)
+    return st in (400, 404) and coluna in s and ("PGRST204" in s or "42703" in s)
+
+
 def sb_select(params: dict):
     q = urllib.parse.urlencode(params)
-    url = f"{SUPABASE_URL}/rest/v1/{TABLE}?{q}"
-    return http("GET", url, {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"})
+    return http("GET", f"{SUPABASE_URL}/rest/v1/{TABLE}?{q}", _hdr())
 
 
 def sb_upsert(rows: list):
@@ -54,16 +65,11 @@ def sb_upsert(rows: list):
     Supabase descartar a instrucao e devolver 409 (chave duplicada) toda vez
     que a noticia ja existia - erro falso que escondia problema de verdade.
 
-    Se a coluna opcional 'checagem' ainda nao existir no banco, reenvia sem
-    ela em vez de quebrar o job (42703 = coluna inexistente)."""
+    Se a coluna opcional 'checagem' ainda nao existir, reenvia sem ela."""
     url = f"{SUPABASE_URL}/rest/v1/{TABLE}?on_conflict=link"
-    hdr = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}",
-           "Prefer": "resolution=ignore-duplicates,return=minimal"}
+    hdr = _hdr(Prefer="resolution=ignore-duplicates,return=minimal")
     st, resp = http("POST", url, hdr, rows)
-    # coluna opcional ausente: PostgREST responde PGRST204 (schema cache) e o
-    # Postgres cru responde 42703. Aceita os dois e reenvia sem a coluna.
-    if st in (400, 404) and "checagem" in str(resp) and \
-            ("PGRST204" in str(resp) or "42703" in str(resp)):
+    if coluna_ausente(st, resp, "checagem"):
         print("  aviso: coluna 'checagem' ainda nao existe no banco; "
               "gravando sem ela (rode o ALTER TABLE para ativar o aviso).")
         limpo = [{k: v for k, v in r.items() if k != "checagem"} for r in rows]
@@ -72,21 +78,17 @@ def sb_upsert(rows: list):
 
 
 def sb_update_sentimento(link: str, sentimento: str, conteudo: str = None):
-    """Grava o sentimento da noticia e, quando informado, o TEXTO INTEGRAL
-    da materia lida as 05:30 (coluna opcional 'conteudo').
+    """Grava o sentimento e, quando informado, o TEXTO INTEGRAL da materia
+    lida as 05:30 (coluna opcional 'conteudo').
 
-    Se a coluna 'conteudo' ainda nao existir no banco, regrava so o
-    sentimento em vez de quebrar o job (PGRST204 / 42703)."""
-    enc = urllib.parse.quote(link, safe="")
-    url = f"{SUPABASE_URL}/rest/v1/{TABLE}?link=eq.{enc}"
-    hdr = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}",
-           "Prefer": "return=representation"}
+    Se a coluna 'conteudo' ainda nao existir, regrava so o sentimento."""
+    url = f"{SUPABASE_URL}/rest/v1/{TABLE}?link=eq.{urllib.parse.quote(link, safe='')}"
+    hdr = _hdr(Prefer="return=representation")
     body = {"sentimento": sentimento}
     if conteudo is not None:
         body["conteudo"] = conteudo
     st, resp = http("PATCH", url, hdr, body)
-    if conteudo is not None and st in (400, 404) and "conteudo" in str(resp) and \
-            ("PGRST204" in str(resp) or "42703" in str(resp)):
+    if conteudo is not None and coluna_ausente(st, resp, "conteudo"):
         print("  aviso: coluna 'conteudo' ainda nao existe no banco; "
               "gravando so o sentimento (rode o ALTER TABLE para guardar o texto).")
         st, resp = http("PATCH", url, hdr, {"sentimento": sentimento})

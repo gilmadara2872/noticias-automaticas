@@ -85,7 +85,7 @@ def main():
         "limit": "200",
     })
     # se a coluna 'conteudo' ainda nao existe, volta ao criterio antigo
-    if st in (400, 404) and "conteudo" in str(resp):
+    if common.coluna_ausente(st, resp, "conteudo"):
         st, resp = common.sb_select({
             "select": "link,title,source,quando,sentimento",
             "sentimento": "is.null",
