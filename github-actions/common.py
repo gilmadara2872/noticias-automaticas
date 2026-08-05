@@ -53,7 +53,10 @@ def sb_upsert(rows: list):
     hdr = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}",
            "Prefer": "resolution=ignore-duplicates,return=minimal"}
     st, resp = http("POST", url, hdr, rows)
-    if st == 400 and "42703" in str(resp) and "checagem" in str(resp):
+    # coluna opcional ausente: PostgREST responde PGRST204 (schema cache) e o
+    # Postgres cru responde 42703. Aceita os dois e reenvia sem a coluna.
+    if st in (400, 404) and "checagem" in str(resp) and \
+            ("PGRST204" in str(resp) or "42703" in str(resp)):
         print("  aviso: coluna 'checagem' ainda nao existe no banco; "
               "gravando sem ela (rode o ALTER TABLE para ativar o aviso).")
         limpo = [{k: v for k, v in r.items() if k != "checagem"} for r in rows]

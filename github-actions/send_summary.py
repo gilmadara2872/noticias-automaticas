@@ -38,7 +38,7 @@ def main():
         "limit": "50",
     })
     # a coluna 'checagem' e opcional: se ainda nao existe, refaz sem ela
-    if st == 400 and "checagem" in str(resp):
+    if st in (400, 404) and "checagem" in str(resp):
         st, resp = common.sb_select({
             "select": "keyword,title,source,link,quando,sentimento",
             "dia": "eq." + dia,
