@@ -6,6 +6,7 @@
 import json
 import os
 import re
+import time
 import urllib.request
 import urllib.error
 
@@ -76,12 +77,20 @@ def llm_sentiment(title, content, keyword=""):
     )
     body = {"model": common.LLM_MODEL,
             "messages": [{"role": "user", "content": prompt}], "temperature": 0}
-    st, resp = common.http(
-        "POST", common.LLM_BASE_URL + "/chat/completions",
-        {"Authorization": f"Bearer {common.LLM_API_KEY}",
-         "Content-Type": "application/json"}, body, timeout=180)
+    # O modelo gratuito devolve 429 quando o provedor esta congestionado.
+    # Sem repetir, o script caia no lexico e gravava classificacao ruim.
+    st = resp = None
+    for tentativa in range(1, 5):
+        st, resp = common.http(
+            "POST", common.LLM_BASE_URL + "/chat/completions",
+            {"Authorization": f"Bearer {common.LLM_API_KEY}",
+             "Content-Type": "application/json"}, body, timeout=180)
+        if st == 200:
+            break
+        print(f"    IA falhou (HTTP {st}) tentativa {tentativa}/4: {str(resp)[:120]}")
+        if tentativa < 4:
+            time.sleep(20 * tentativa)
     if st != 200:
-        print(f"    IA falhou (HTTP {st}): {str(resp)[:150]}")
         return None
     try:
         txt = resp["choices"][0]["message"]["content"].strip().upper()
