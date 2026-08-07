@@ -47,7 +47,7 @@ def lexicon_sentiment(title, content):
     return "NEUTRA"
 
 
-def llm_sentiment(title, content):
+def llm_sentiment(title, content, keyword=""):
     """Classifica pela IA. Devolve None se nao der - mas NUNCA em silencio:
     todo motivo de falha e impresso, senao a queda para o lexico passa
     despercebida e o resultado parece pior sem explicacao."""
@@ -57,9 +57,21 @@ def llm_sentiment(title, content):
     # O modelo tem limite de tamanho no pedido, entao aqui vai um recorte
     # generoso (30 mil caracteres cobre materia jornalistica inteira).
     # No BANCO o texto e gravado completo, sem corte.
+    alvo = keyword or "a pessoa/empresa monitorada"
     prompt = (
-        "Analise o sentimento da noticia abaixo em relacao a pessoa/empresa "
-        "monitorada. Responda APENAS uma palavra: POSITIVA, NEGATIVA ou NEUTRA.\n\n"
+        "Voce e um analista de reputacao. Avalie o sentimento da noticia "
+        f"ESTRITAMENTE em relacao a {alvo}.\n\n"
+        "REGRA PRINCIPAL: classifique o TOM DA PARTICIPACAO OU MENCAO de "
+        f"{alvo}, e NAO o tema da noticia.\n"
+        "- Se o tema for pesado/negativo (crime, golpe, deepfake, fraude, "
+        f"tragedia) mas {alvo} aparece como especialista, fonte, autoridade, "
+        "vitima defendida, quem alerta, explica, ajuda ou combate o problema, "
+        "a classificacao e POSITIVA.\n"
+        f"- Só use NEGATIVA se {alvo} for acusado, criticado, responsabilizado, "
+        "ridicularizado ou prejudicado na propria reputacao.\n"
+        f"- Use NEUTRA se {alvo} for apenas citado de passagem, sem juizo de "
+        "valor sobre ele.\n\n"
+        "Responda APENAS uma palavra: POSITIVA, NEGATIVA ou NEUTRA.\n\n"
         f"Titulo: {title}\n\nConteudo: {content[:30000]}"
     )
     body = {"model": common.LLM_MODEL,
@@ -88,7 +100,7 @@ def main():
     # sentimento mas ainda estao sem o texto guardado (coluna 'conteudo'),
     # para que o acervo do banco fique completo.
     st, resp = common.sb_select({
-        "select": "link,title,source,quando,sentimento",
+        "select": "link,title,source,quando,sentimento,keyword",
         "or": "(sentimento.is.null,conteudo.is.null)",
         "limit": "200",
     })
@@ -112,7 +124,7 @@ def main():
             print(f"  {str(n['title'])[:50]} -> {sent} (mantido) "
                   f"({len(content)} chars lidos)")
         else:
-            sent = llm_sentiment(n["title"], content)
+            sent = llm_sentiment(n["title"], content, n.get("keyword") or "")
             metodo = "IA"
             if not sent:
                 sent = lexicon_sentiment(n["title"], content)
