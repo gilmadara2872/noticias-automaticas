@@ -11,6 +11,7 @@ import urllib.request
 import urllib.error
 
 import common
+import monitor
 
 POS = set("bom boa otimo otima otima excelente positivo positiva positiva sucesso "
           "crescimento lucro elogio aprovado vitoria ganha ganhou avanco record "
@@ -22,7 +23,15 @@ NEG = set("ruim mau ma medo crime prisao preso condenado denunciado investigado 
 
 def fetch_article(url):
     """Baixa a materia e devolve o texto limpo INTEIRO (sem corte).
-    Antes cortava em 4000 caracteres e perdia o final das materias longas."""
+    Antes cortava em 4000 caracteres e perdia o final das materias longas.
+
+    Se o link ainda for o opaco do Google News (noticia salva antes do
+    resolvedor existir), traduz para a URL real primeiro - senao a leitura
+    volta com ~11 caracteres e a IA classifica so pelo titulo."""
+    real = monitor.google_news_real_url(url)
+    if real:
+        print(f"    link do Google News resolvido -> {real}")
+        url = real
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
         with urllib.request.urlopen(req, timeout=25) as r:

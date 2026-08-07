@@ -17,6 +17,9 @@ import common
 # Palavras-chave monitoradas: fonte unica em common.py (segredo KEYWORDS).
 KEYWORDS = common.KEYWORDS
 
+UA = ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+      "(KHTML, like Gecko) Chrome/120 Safari/537.36")
+
 
 def normaliza(s):
     """minusculas sem acento, para casar 'Correa' com 'Correa'."""
@@ -52,10 +55,49 @@ def ddg_urls(query):
     return out[:6]
 
 
-def resolve_url(titulo, fonte):
+def google_news_real_url(gurl):
+    """Traduz o link opaco do Google News (news.google.com/rss/articles/...)
+    na URL real do veiculo, usando a mesma API interna que o navegador chama.
+
+    Sem isso, quando o DuckDuckGo nao achava a materia pelo titulo, o link
+    opaco ia parar no banco e o texto NUNCA era baixado (11 caracteres),
+    fazendo a IA classificar so pelo titulo e devolver NEUTRA falso.
+    """
+    if "news.google.com" not in gurl or "/articles/" not in gurl:
+        return None
+    try:
+        aid = gurl.split("/articles/")[1].split("?")[0]
+        req = urllib.request.Request(gurl, headers={"User-Agent": UA})
+        html = urllib.request.urlopen(req, timeout=25).read().decode("utf-8", "ignore")
+        sg = re.search(r'data-n-a-sg="([^"]+)"', html)
+        ts = re.search(r'data-n-a-ts="([^"]+)"', html)
+        if not (sg and ts):
+            return None
+        inner = json.dumps(["garturlreq",
+                            [["X", "X", ["X", "X"], None, None, 1, 1, "US:en",
+                              None, 1, None, None, None, None, None, 0, 1],
+                             "X", "X", 1, [1, 1, 1], 1, 1, None, 0, 0, None, 0],
+                            aid, int(ts.group(1)), sg.group(1)])
+        data = urllib.parse.urlencode(
+            {"f.req": json.dumps([[["Fbv4je", inner, None, "generic"]]])}).encode()
+        req = urllib.request.Request(
+            "https://news.google.com/_/DotsSplashUi/data/batchexecute", data=data,
+            headers={"User-Agent": UA,
+                     "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"})
+        resp = urllib.request.urlopen(req, timeout=25).read().decode("utf-8", "ignore")
+        m = re.search(r'\[\\"garturlres\\",\\"(.*?)\\"', resp)
+        return m.group(1) if m else None
+    except Exception:
+        return None
+
+
+def resolve_url(titulo, fonte, link_google=""):
     """O link do Google News nao expoe a URL do veiculo (pagina JS).
-    Reencontramos a materia pelo titulo no DuckDuckGo, preferindo o
-    resultado do proprio veiculo que o RSS informou."""
+    1o) traduz o proprio link opaco pela API do Google (exato e confiavel);
+    2o) so entao cai na busca por titulo no DuckDuckGo (aproximada)."""
+    real = google_news_real_url(link_google) if link_google else None
+    if real:
+        return real
     res = ddg_urls(titulo)
     if not res:
         return None
@@ -77,7 +119,7 @@ def baixa_texto(url):
     return re.sub(r"<[^>]+>", " ", html)
 
 
-def triagem(titulo, keyword, fonte=""):
+def triagem(titulo, keyword, fonte="", link_google=""):
     """FILTRO. Devolve (aceita, url_real, checagem).
 
     'checagem' diz COMO a noticia entrou, para o resumo poder avisar o
@@ -90,7 +132,7 @@ def triagem(titulo, keyword, fonte=""):
     Corpo inacessivel -> ACEITA e MARCA. Fail-open, mas nunca silencioso:
     e melhor uma noticia a mais, sinalizada, do que um monitoramento que
     emudece sozinho quando a rede aperta."""
-    url = resolve_url(titulo, fonte)
+    url = resolve_url(titulo, fonte, link_google)
     if cita(titulo, keyword):
         return True, url, "titulo"
     if not url:
@@ -162,7 +204,7 @@ def main():
                     fonte = talvez_fonte
             # FILTRO DE RELEVANCIA: descarta noticia que nao cita a keyword.
             # Resolve tambem a URL real do veiculo (o link do Google e opaco).
-            aceita, real, checagem = triagem(t, kw, fonte)
+            aceita, real, checagem = triagem(t, kw, fonte, e["link"])
             time.sleep(2)  # gentileza com o DuckDuckGo (evita rate-limit)
             if not aceita:
                 print(f"  [descartada] {t[:60]}")
