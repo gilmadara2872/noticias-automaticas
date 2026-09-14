@@ -134,14 +134,18 @@ def main():
     
     if args.csv:
         csv_content = para_csv(noticias)
-        nome = args.output or f"simulacao_noticias_{datetime.now(BRT).strftime('%Y%m%d_%H%M%S')}.csv"
+        nome = args.output or f"simulacao_noticias_{datetime.now(BRT).strftime('%Y%m%d_%H%M%S')}"
+        if not nome.endswith('.csv'):
+            nome += '.csv'
         with open(nome, 'w', encoding='utf-8') as f:
             f.write(csv_content)
         print(f"\n✓ CSV salvo: {nome}")
     
     if args.json:
         json_data = para_json(noticias)
-        nome = args.output or f"simulacao_noticias_{datetime.now(BRT).strftime('%Y%m%d_%H%M%S')}.json"
+        nome = args.output or f"simulacao_noticias_{datetime.now(BRT).strftime('%Y%m%d_%H%M%S')}"
+        if not nome.endswith('.json'):
+            nome += '.json'
         with open(nome, 'w', encoding='utf-8') as f:
             json.dump(json_data, f, ensure_ascii=False, indent=2)
         print(f"\n✓ JSON salvo: {nome}")
