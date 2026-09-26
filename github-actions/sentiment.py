@@ -191,13 +191,19 @@ def llm_sentiment(title, content, keyword=""):
     return None
 
 
-def main():
-    # Pega TODAS as noticias que precisam ser analisadas.
-    st, resp = common.sb_select({
-        "select": "link,title,source,quando,sentimento,keyword,conteudo",
-        "or": "(sentimento.is.null,conteudo.is.null)",
-        "limit": "200",
-    })
+def main(force=False):
+    # Pega TODAS as noticias (force=True) ou apenas pendentes
+    if force:
+        st, resp = common.sb_select({
+            "select": "link,title,source,quando,sentimento,keyword,conteudo",
+            "limit": "200",
+        })
+    else:
+        st, resp = common.sb_select({
+            "select": "link,title,source,quando,sentimento,keyword,conteudo",
+            "or": "(sentimento.is.null,conteudo.is.null)",
+            "limit": "200",
+        })
     if common.coluna_ausente(st, resp, "conteudo"):
         st, resp = common.sb_select({
             "select": "link,title,source,quando,sentimento",
@@ -211,7 +217,7 @@ def main():
     for n in resp:
         content = fetch_article(n["link"])
         sent = n.get("sentimento")
-        if sent:
+        if sent and not force:
             print(f"  {str(n['title'])[:50]} -> {sent} (mantido) ({len(content)} chars lidos)")
         else:
             sent = llm_sentiment(n["title"], content, n.get("keyword") or "")
@@ -227,4 +233,6 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    force = "--force" in sys.argv
+    main(force=force)
