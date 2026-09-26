@@ -15,5 +15,18 @@ jobs:
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           KEYWORDS: ${{ secrets.KEYWORDS }}
         run: |
-          pip install -r github-actions/requirements.txt 2>/dev/null || true
-          python reclassificar.py
+          python -c "
+import os, json, urllib.request, urllib.error, urllib.parse
+url = os.environ['SUPABASE_URL'] + '/rest/v1/monitored_news'
+key = os.environ['SUPABASE_KEY']
+hdr = {'apikey': key, 'Authorization': 'Bearer ' + key, 'Prefer': 'return=representation'}
+body = {'sentimento': None, 'conteudo': None}
+req = urllib.request.Request(url, data=json.dumps(body).encode(), method='PATCH', headers=hdr)
+try:
+    r = urllib.request.urlopen(req, timeout=30)
+    print('SUCCESS: Todas as noticias tiveram sentimento e conteudo zerados.')
+except urllib.error.HTTPError as e:
+    print(f'ERRO: {e.code} - {e.read().decode()[:200]}')
+except Exception as e:
+    print(f'ERRO: {e}')
+"
