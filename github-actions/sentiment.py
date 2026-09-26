@@ -191,13 +191,20 @@ def llm_sentiment(title, content, keyword=""):
     return None
 
 
-def main():
-    # Pega TODAS as noticias que precisam ser analisadas.
-    st, resp = common.sb_select({
-        "select": "link,title,source,quando,sentimento,keyword,conteudo",
-        "or": "(sentimento.is.null,conteudo.is.null)",
-        "limit": "200",
-    })
+def main(force=False):
+    # Pega as noticias que precisam ser analisadas.
+    # Se force=True, pega TODAS as noticias para reclassificacao.
+    if force:
+        st, resp = common.sb_select({
+            "select": "link,title,source,quando,sentimento,keyword,conteudo",
+            "limit": "200",
+        })
+    else:
+        st, resp = common.sb_select({
+            "select": "link,title,source,quando,sentimento,keyword,conteudo",
+            "or": "(sentimento.is.null,conteudo.is.null)",
+            "limit": "200",
+        })
     if common.colunia_ausente(st, resp, "conteudo"):
         st, resp = common.sb_select({
             "select": "link,title,source,quando,sentimento",
@@ -227,4 +234,6 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    force = "--force" in sys.argv
+    main(force=force)
