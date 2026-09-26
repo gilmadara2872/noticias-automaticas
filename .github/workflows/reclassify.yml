@@ -15,4 +15,4 @@ jobs:
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           KEYWORDS: ${{ secrets.KEYWORDS }}
         run: |
-          python -c "import os,json,urllib.request,urllib.error;url=os.environ['SUPABASE_URL']+'/rest/v1/monitored_news';key=os.environ['SUPABASE_KEY'];hdr={'apikey':key,'Authorization':'Bearer '+key,'Prefer':'return=representation'};body={'sentimento':None,'conteudo':None};req=urllib.request.Request(url,data=json.dumps(body).encode(),method='PATCH',headers=hdr);r=urllib.request.urlopen(req,timeout=30);print('SUCCESS: Todas as noticias tiveram sentimento e conteudo zerados.')"
+          python -c "import os,json,urllib.request,urllib.error,urllib.parse;url=os.environ['SUPABASE_URL']+'/rest/v1/monitored_news';key=os.environ['SUPABASE_KEY'];data=json.dumps({'sentimento':None,'conteudo':None}).encode();req=urllib.request.Request(url,data=data,method='PATCH',headers={'apikey':key,'Authorization':'Bearer '+key,'Prefer':'return=representation','Content-Type':'application/json'});r=urllib.request.urlopen(req,timeout=30);print('SUCCESS: Todas as noticias tiveram sentimento e conteudo zerados.')"
