@@ -148,6 +148,22 @@ def llm_sentiment(title, content, keyword=""):
         print("    IA nao usada: LLM_API_KEY nao configurada")
         return None
     alvo = keyword or "a pessoa/empresa monitorada"
+    
+    # Contexto especial para Kennedy Corrêa
+    kennedy_context = ""
+    if "Kennedy" in alvo or "Kenneth" in alvo or "Kennedy Corrêa" in alvo:
+        kennedy_context = (
+            "\n\nCONTEXTO ESPECIAL: Kennedy Corrêa (Kenneth Corrêa) e um mentor, "
+            "palestrante e coordenador de eventos academicos. Sua participacao como "
+            "palestrante, moderador, ou coordenador em um evento e normalmente um "
+            "sinal POSITIVO de credibilidade e reconhecimento. Por favor, analise "
+            "ESTRITAMENTE o contexto da participacao dele na noticia:\n"
+            "- Se ele e palestrante, moderador, ou coordenador do evento = POSITIVA\n"
+            "- Se ele e mencionado como especialista ou fonte confiavel = POSITIVA\n"
+            "- Se ele e criticado, responsabilizado ou acusado = NEGATIVA\n"
+            "- Se ele e apenas citado de passagem sem juizo de valor = NEUTRA\n\n"
+        )
+    
     prompt = (
         "Voce e um analista de reputacao. Avalie o sentimento da noticia "
         f"ESTRITAMENTE em relacao a {alvo}.\n\n"
@@ -161,6 +177,7 @@ def llm_sentiment(title, content, keyword=""):
         "ridicularizado ou prejudicado na propria reputacao.\n"
         f"- Use NEUTRA se {alvo} for apenas citado de passagem, sem juizo de "
         "valor sobre ele.\n\n"
+        {kennedy_context}
         "Responda APENAS uma palavra: POSITIVA, NEGATIVA ou NEUTRA.\n\n"
         f"Titulo: {title}\n\nConteudo: {content[:30000]}"
     )
@@ -220,20 +237,24 @@ def main(force=False):
         if sent and not force:
             print(f"  {str(n['title'])[:50]} -> {sent} (mantido) ({len(content)} chars lidos)")
         else:
-            # Regra: se Kennedy Corrêa/Kenneth apareceu, sentimento eh POSITIVA
+            # Detecta se Kennedy Corrêa apareceu na noticia
             titulo = str(n["title"])
-            conteudo = str(n.get("conteudo", ""))
-            if "Kennedy" in titulo or "Kenneth" in titulo or "Kennedy" in conteudo or "Kenneth" in conteudo:
-                sent = "POSITIVA"
-                metodo = "Kennedy Corrêa (regra manual)"
-                print(f"  {titulo[:50]} -> {sent} [via {metodo}] ({len(content)} chars lidos)")
+            conteudo_texto = str(content)
+            kennedy_presente = "Kennedy" in titulo or "Kenneth" in titulo or "Kennedy" in conteudo_texto or "Kenneth" in conteudo_texto
+            
+            # Se Kennedy apareceu, passa o contexto pro LLM avaliar a participacao
+            if kennedy_presente:
+                kennedy_keyword = "Kennedy Corrêa (Kenneth Corrêa) - mentor, palestrante e coordenador do evento"
+                sent = llm_sentiment(n["title"], content, kennedy_keyword)
+                metodo = "IA (Kennedy)"
             else:
                 sent = llm_sentiment(n["title"], content, n.get("keyword") or "")
                 metodo = "IA"
-                if not sent:
-                    sent = lexicon_sentiment(n["title"], content)
-                    metodo = "lexico (IA indisponivel)"
-                print(f"  {titulo[:50]} -> {sent} [via {metodo}] ({len(content)} chars lidos)")
+            
+            if not sent:
+                sent = lexicon_sentiment(n["title"], content)
+                metodo = "lexico (IA indisponivel)"
+            print(f"  {titulo[:50]} -> {sent} [via {metodo}] ({len(content)} chars lidos)")
         s2, r2 = common.sb_update_sentimento(n["link"], sent, content)
         if s2 not in (200, 204):
             print(f"    aviso: banco respondeu {s2}")
