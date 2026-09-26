@@ -13,6 +13,22 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          KEYWORDS: ${{ secrets.KEYWORDS }}
         run: |
-          pip install -r github-actions/requirements.txt 2>/dev/null || true
-          python reclassificar.py
+          cd github-actions
+          pip install -r requirements.txt 2>/dev/null || true
+          python -c "
+import sys
+sys.path.insert(0, '.')
+import common
+url = common.SUPABASE_URL + '/rest/v1/' + common.TABLE
+hdr = common._hdr(Prefer='return=representation')
+body = {'sentimento': 'PENDENTE'}
+import urllib.request, json, urllib.error
+req = urllib.request.Request(url, data=json.dumps(body).encode(), method='PATCH', headers=hdr)
+try:
+    r = urllib.request.urlopen(req, timeout=30)
+    print('SUCCESS: Todas as noticias marcadas como PENDENTE.')
+except urllib.error.HTTPError as e:
+    print(f'ERRO: {e.code} - {e.read().decode()[:300]}')
+"
