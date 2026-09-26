@@ -222,7 +222,8 @@ def main(force=False):
         else:
             # Regra: se Kennedy Corrêa/Kenneth apareceu, sentimento eh POSITIVA
             titulo = str(n["title"])
-            if "Kennedy" in titulo or "Kenneth" in titulo or "Kennedy Corrêa" in content:
+            conteudo = str(n.get("conteudo", ""))
+            if "Kennedy" in titulo or "Kenneth" in titulo or "Kennedy" in conteudo or "Kenneth" in conteudo:
                 sent = "POSITIVA"
                 metodo = "Kennedy Corrêa (regra manual)"
                 print(f"  {titulo[:50]} -> {sent} [via {metodo}] ({len(content)} chars lidos)")
