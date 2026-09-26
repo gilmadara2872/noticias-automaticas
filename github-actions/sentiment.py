@@ -220,12 +220,19 @@ def main(force=False):
         if sent and not force:
             print(f"  {str(n['title'])[:50]} -> {sent} (mantido) ({len(content)} chars lidos)")
         else:
-            sent = llm_sentiment(n["title"], content, n.get("keyword") or "")
-            metodo = "IA"
-            if not sent:
-                sent = lexicon_sentiment(n["title"], content)
-                metodo = "lexico (IA indisponivel)"
-            print(f"  {str(n['title'])[:50]} -> {sent} [via {metodo}] ({len(content)} chars lidos)")
+            # Regra: se Kennedy Corrêa/Kenneth apareceu, sentimento eh POSITIVA
+            titulo = str(n["title"])
+            if "Kennedy" in titulo or "Kenneth" in titulo or "Kennedy Corrêa" in content:
+                sent = "POSITIVA"
+                metodo = "Kennedy Corrêa (regra manual)"
+                print(f"  {titulo[:50]} -> {sent} [via {metodo}] ({len(content)} chars lidos)")
+            else:
+                sent = llm_sentiment(n["title"], content, n.get("keyword") or "")
+                metodo = "IA"
+                if not sent:
+                    sent = lexicon_sentiment(n["title"], content)
+                    metodo = "lexico (IA indisponivel)"
+                print(f"  {titulo[:50]} -> {sent} [via {metodo}] ({len(content)} chars lidos)")
         s2, r2 = common.sb_update_sentimento(n["link"], sent, content)
         if s2 not in (200, 204):
             print(f"    aviso: banco respondeu {s2}")
