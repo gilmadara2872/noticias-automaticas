@@ -177,7 +177,7 @@ def llm_sentiment(title, content, keyword=""):
         "ridicularizado ou prejudicado na propria reputacao.\n"
         f"- Use NEUTRA se {alvo} for apenas citado de passagem, sem juizo de "
         "valor sobre ele.\n\n"
-        {kennedy_context}
+        f"{kennedy_context}"
         "Responda APENAS uma palavra: POSITIVA, NEGATIVA ou NEUTRA.\n\n"
         f"Titulo: {title}\n\nConteudo: {content[:30000]}"
     )
