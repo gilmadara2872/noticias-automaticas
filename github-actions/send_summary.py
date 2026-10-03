@@ -80,6 +80,13 @@ def main():
 
     cab = (f" RESUMO DIARIO DE NOTICIAS ({dia})\n"
            f" Total: {n_total} noticia(s) em {len(KEYWORDS)} termo(s) monitorado(s)\n")
+    # Se nada foi coletado hoje, avisa explicitamente. Antes o sistema ficava
+    # em silencio e era impossivel saber se "nenhuma noticia" era verdade ou
+    # se a coleta tinha falhado.
+    if n_total == 0:
+        cab += (" ATENCAO: nenhuma noticia coletada hoje. Se ontem houve "
+                "noticias, a coleta pode estar falhando - verifique o log "
+                "do workflow 'Monitorar' no GitHub Actions.\n")
     partes_txt = [cab]
     if com:
         partes_txt.append("\n\n------------------------\n\n".join(com))

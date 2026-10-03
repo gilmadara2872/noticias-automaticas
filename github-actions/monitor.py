@@ -13,6 +13,7 @@ from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 
 import common
+import collect
 
 # Palavras-chave monitoradas: fonte unica em common.py (segredo KEYWORDS).
 KEYWORDS = common.KEYWORDS
@@ -176,51 +177,16 @@ def main():
     limite_ts = limite.timestamp()
     coletados = []
     for kw in KEYWORDS:
-        q = '"' + kw + '" when:2d'
-        url = ("https://news.google.com/rss/search?q=" + urllib.parse.quote(q) +
-               "&hl=pt-BR&gl=BR&ceid=BR:pt-419")
-        try:
-            xml = fetch_rss(url)
-        except Exception as e:
-            print(f"  RSS falhou para {kw}: {e}")
-            continue
-        for e in parse_items(xml):
-            try:
-                dt = parsedate_to_datetime(e["pubDate"])
-                if dt.tzinfo is None:
-                    dt = dt.replace(tzinfo=timezone.utc)
-                dt = dt.astimezone(BRT)
-            except Exception:
-                continue
-            ts = dt.timestamp()
-            # so aceita dentro da janela dos ultimos N dias
-            if ts < limite_ts:
-                continue
-            t = e["title"]
-            fonte = e["source"]
-            if " - " in t:
-                t, talvez_fonte = t.rsplit(" - ", 1)
-                if not fonte:
-                    fonte = talvez_fonte
-            # FILTRO DE RELEVANCIA: descarta noticia que nao cita a keyword.
-            # Resolve tambem a URL real do veiculo (o link do Google e opaco).
-            aceita, real, checagem = triagem(t, kw, fonte, e["link"])
-            time.sleep(2)  # gentileza com o DuckDuckGo (evita rate-limit)
-            if not aceita:
-                print(f"  [descartada] {t[:60]}")
-                continue
-            if checagem == "nao_conferida":
-                print(f"  [NAO CONFERIDA] {t[:55]} (materia inacessivel)")
-            coletados.append({
-                "keyword": kw,
-                "title": t,
-                "link": real or e["link"],
-                "source": fonte,
-                "dia": dt.strftime("%Y-%m-%d"),
-                "quando": dt.strftime("%d/%m/%Y %H:%M"),
-                "ts": int(ts * 1000),
-                "checagem": checagem,
-            })
+        # A coleta em 2 camadas vive em collect.py. Ela existe porque buscar
+        # SO pelo nome perde materia de veiculo grande: o paywall do O Globo
+        # impede o Google de indexar o nome, que esta no meio do artigo. A
+        # camada 2 busca por TEMA e o filtro cita() (aqui mesmo, no monitor)
+        # continua decidindo o que e do cliente. Ver collect.py.
+        novos = collect.coletar(kw, dias_janela=LAST_N_DAYS, verbose=True)
+        for c in novos:
+            if c["ts"] / 1000 < limite_ts:
+                continue          # fora da janela de gravacao
+            coletados.append(c)
 
     # dedup por link (nao repete nem no proprio lote)
     vistos, unicos = set(), []

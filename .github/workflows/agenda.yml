@@ -15,6 +15,10 @@ jobs:
   monitor:
     if: github.event.schedule == '0 8 * * *' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    # A coleta em 2 camadas baixa o corpo de varias materias para conferir
+    # se citam o cliente. Isso leva bem mais que os 6 minutos padrao do
+    # GitHub Actions (e o timeout dao 6h).
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: github-actions
@@ -33,6 +37,8 @@ jobs:
   sentiment:
     if: github.event.schedule == '30 8 * * *' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    # Classificar por IA leva ~3-6s por noticia; com --force sao ~38.
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: github-actions

@@ -4,6 +4,8 @@ on:
 jobs:
   reclassify:
     runs-on: ubuntu-latest
+    # Reclassificar todas as noticias por IA leva ~5s cada.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
