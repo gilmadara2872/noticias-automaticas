@@ -29,9 +29,30 @@ def normaliza(s):
 
 
 def cita(texto, keyword):
-    """True se o texto cita a keyword (todas as palavras dela, sem acento)."""
+    """True se o texto cita a keyword (todas as palavras dela, sem acento).
+
+    ATENCAO - por que isto NAO e um simples 'all(p in t for p in palavras)':
+    esse teste dava FALSO POSITIVO grave. "Kenneth Correa" (2 palavras)
+    era satisfeita por um texto sobre o jogador "John Kennedy": as duas
+    palavras aparecem, so que em outra ordem e separadas. Com as consultas
+    por veiculo, que trazem 100 itens, isso encheva o banco de materia de
+    futebol e de politica.
+
+    Por isso exigimos o NOME INTEIRO como sequencia, com espaco em volta:
+    ' kenneth correa ' ou ' kenneth  correa ' (espaco duplo quando o
+    original trazia <strong>). Isso mantem o match no meio da frase e
+    descarta quem tem so o sobrenome em outro contexto.
+    """
     t = normaliza(texto)
-    return all(p in t for p in normaliza(keyword).split())
+    partes = normaliza(keyword).split()
+    if not partes:
+        return False
+    nome = " ".join(partes)
+    # aceita espacos extras entre as palavras (marcacao HTML bold)
+    if re.search(r"\b" + r"\s+".join(re.escape(p) for p in partes) + r"\b",
+                 t):
+        return True
+    return f" {nome} " in f" {t} "
 
 
 def ddg_urls(query):
