@@ -67,20 +67,27 @@ BUSCAS_TEMA = [
 # A lista de veiculos e FINITA e CONHECIDA. Nao e adivinhacao.
 # O filtro de corpo (cita) continua decidindo o que e dele.
 VEICULOS = [
+    # site: funciona no RSS do Google News - testado. Sem isto, materia de
+    # Folha/Valor/UOL nao entrava: so aparecia em busca por assunto.
+    'site:folha.uol.com.br "Kenneth Corrêa" when:30d',
+    'site:valor.globo.com "Kenneth Correa" when:30d',
+    'site:uol.com.br "Kenneth Corrêa" when:30d',
     'site:oglobo.globo.com "Kenneth Corrêa" when:30d',
     'site:estadao.com.br "Kenneth Corrêa" when:30d',
-    'site:folha.uol.com.br "Kenneth Corrêa" when:30d',
-    'site:valor.globo.com "Kenneth Corrêa" when:30d',
     'site:cnnbrasil.com.br "Kenneth Corrêa" when:30d',
-    'site:uol.com.br "Kenneth Corrêa" when:30d',
-    # sem aspas no nome: veiculo grande costuma escrever "Correa" sem acento
+    # sem acento: veiculo grande costuma publicar "Correa"
     'site:oglobo.globo.com Kenneth Correa when:30d',
     'site:estadao.com.br Kenneth Correa when:30d',
     'site:cnnbrasil.com.br Kenneth Correa when:30d',
-    'site:valor.globo.com Kenneth Correa when:30d',
-    # assinatura em portal agregador
-    '"Kenneth Corrêa" site:*.com.br when:30d',
-    '"Kenneth Corrêa" site:*.br when:30d',
+    'site:folha.uol.com.br Kenneth Correa when:30d',
+    # fonte nomeada (source: tambem funciona no RSS)
+    'source:Estadão "Kenneth Corrêa" when:30d',
+    'source:Folha "Kenneth Corrêa" when:30d',
+    # agregadores que republicam materia de veiculo grande
+    '"Kenneth Corrêa" folha when:30d',
+    '"Kenneth Corrêa" valor when:30d',
+    '"Kenneth Corrêa" oglobo when:30d',
+    '"Kenneth Correa" when:30d',
 ]
 
 # Teto de downloads por consulta de tema. O ganho marginal cai muito depois
