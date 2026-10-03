@@ -329,10 +329,22 @@ def main(force=False):
 
 
 def avisa_telegram(texto):
-    """Envia alerta e nunca quebra o pipeline por causa disso."""
+    """Envia alerta e nunca quebra o pipeline por causa disso.
+
+    Se o proprio alerta falha, diz no console E writes no banco seria
+    demais; aqui o ponto e nao deixar o aviso morrer em silencio: um
+    404 aqui significa que o workflow nao passou TG_TOKEN/TG_CHAT_ID.
+    """
+    if not common.TG_TOKEN or not common.TG_CHAT_ID:
+        print("  AVISO: Telegram nao configurado (TG_TOKEN/TG_CHAT_ID faltando). "
+              "O alerta abaixo NAO foi enviado:")
+        print("  " + texto.replace("\n", "\n  "))
+        return
     try:
         st, r = common.tg_send(texto)
         print(f"  Telegram alerta: status={st}")
+        if st != 200:
+            print("  ALERME NAO ENTREGUE. Confira os secrets TG_TOKEN/TG_CHAT_ID.")
     except Exception as e:
         print(f"  falha ao enviar alerta: {e}")
 
