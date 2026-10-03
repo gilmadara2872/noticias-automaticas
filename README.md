@@ -5,7 +5,7 @@ Sistema de monitoramento automatizado de notícias via Google News, com análise
 ## Stack
 - **Coleta:** Python 3.12 + GitHub Actions (cron)
 - **Banco:** Supabase (PostgreSQL)
-- **Análise:** LLM (Qwen/Qwen2.5-7B-Instruct via OpenRouter) ou léxico PT-BR offline com 200+ palavras + regra de negação
+- **Análise:** LLM via OpenRouter (padrão `qwen/qwen3.8-27b:free`, custo zero) com léxico PT-BR de 200+ palavras apenas como reserva
 - **Notificação:** Telegram Bot
 - **Painel:** HTML/JS com Chart.js (estático, lê do Supabase)
 
@@ -19,7 +19,8 @@ noticias-automaticas/
 ├── github-actions/
 │   ├── common.py           # Helpers compartilhados (Supabase + LLM)
 │   ├── monitor.py          # 05:00 BRT - Coleta notícias do Google News
-│   ├── sentiment.py        # 05:30 BRT - Análise de sentimento (LLM Qwen ou léxico)
+│   ├── collect.py          # Coleta em 2 camadas (por nome + por tema)
+│   ├── sentiment.py        # 05:30 BRT - Análise de sentimento (LLM, léxico só de reserva)
 │   ├── send_summary.py     # 06:00 BRT - Envia resumo via Telegram
 │   ├── requirements.txt    # Dependências Python
 │   └── README.md           # Documentação do pipeline
@@ -33,7 +34,7 @@ noticias-automaticas/
 | 05:00 | `monitor` | Busca notícias no Google News (palavras-chave), dedup por link, salva no Supabase |
 | 05:30 | `sentiment` | Lê notícias sem sentimento, abre conteúdo integral, classifica POSITIVA/NEGATIVA/NEUTRA |
 | 06:00 | `send` | Lê notícias do dia alvo no Supabase, envia resumo único via Telegram |
-| (manual) | `reclassify` | **Reclassifica TODAS as notícias com o modelo Qwen e regra do Kennedy** |
+| (manual) | `reclassify` | **Reclassifica TODAS as notícias pela IA** (regra da participação) |
 
 ## Variáveis de ambiente (GitHub Secrets)
 
@@ -42,8 +43,8 @@ noticias-automaticas/
 | `SUPABASE_URL` | URL do projeto Supabase |
 | `SUPABASE_KEY` | Chave `service_role` do Supabase (grava no banco) |
 | `KEYWORDS` | Palavras-chave monitoradas (separadas por `;`) |
-| `LLM_API_KEY` | Chave do OpenRouter (obrigatório para LLM; fallback para léxico se não configurado) |
-| `LLM_MODEL` | Modelo LLM (padrão: `Qwen/Qwen2.5-7B-Instruct`) |
+| `LLM_API_KEY` | Chave do OpenRouter. **Obrigatória** — sem ela o léxico assume e o Telegram avisa |
+| `LLM_MODEL` | Modelo LLM (padrão: `qwen/qwen3.8-27b:free`) |
 | `TG_TOKEN` | Token do bot Telegram |
 | `TG_CHAT_ID` | ID do chat Telegram |
 
@@ -51,35 +52,50 @@ noticias-automaticas/
 
 O sistema usa duas abordagens:
 
-### 1. LLM (Qwen/Qwen2.5-7B-Instruct)
-Se `LLM_API_KEY` estiver configurado, usa o modelo Qwen para classificar o conteúdo integral da notícia. O LLM recebe contexto especial sobre o mentor **Kennedy Corrêa** (palestrante/coordenador) — se ele participa como palestrante, a notícia tende a ser POSITIVA; se é criticado, é NEGATIVA.
+### 1. LLM (OpenRouter) — caminho principal
+O modelo lê a notícia inteira e classifica **pelo papel que a pessoa exerce na matéria**, não pelo tema dela:
 
-### 2. Léxico PT-BR offline (fallback)
-Se `LLM_API_KEY` não estiver configurado, usa um léxico com 200+ palavras em português brasileiro, incluindo regras de negação (ex: "não é bom" = negativo).
+| Situação na notícia | Resultado |
+|---|---|
+| Palestrante, especialista citado como fonte, anfitrião, organizador, elogiado | **POSITIVA** |
+| Acusado, negativamente citado, vitima de violencia, contexto de crime | **NEGATIVA** |
+| Apenas citado de passagem (nota de rodapé, lista) ou assunto não é sobre a pessoa | **NEUTRA** |
+
+Vale para qualquer pessoa monitorada — não há caso especial por nome.
+
+O tier gratuito do OpenRouter dá 50 requisições/dia por conta (custo zero). O sistema usa ~2 para checagem de saúde + 1 por notícia.
+
+### 2. Léxico PT-BR — apenas reserva
+Com 200+ palavras e regras de negação. Só entra **se a IA falhar**, e nesse caso o sistema **avisa no Telegram** dizendo quais notícias saíram do léxico. Nunca classifica em silêncio.
+
+### Checagem de saúde (por que existe)
+Antes de classificar, `sentiment.py` testa a chave e o modelo de verdade. Sem isso, uma chave vazia ou um modelo renomeado produz um workflow "verde" com 100% das classificações vindas do léxico — foi exatamente o que aconteceu em 26/09 e ninguém percebeu.
+
+## Coleta em 2 camadas
+
+Buscar apenas pelo nome **não pega matéria de veículo grande**. Medido: `"Kenneth Corrêa" when:365d` devolve 30 resultados e nenhum é a matéria do O Globo, porque o paywall impede o Google de indexar o corpo — e no O Globo o nome está no meio do artigo. O filtro aceitaria a matéria (o nome aparece 6 vezes no texto), mas ela nunca chegava até ele.
+
+Por isso o `collect.py` coleta em duas camadas:
+
+1. **Por nome** — barata e precisa
+2. **Por tema**, usando sempre 2+ termos — porque com 1 termo o Google News satura em 100 itens e a matéria escorre; com 2 termos ela volta completa e aparece no topo (medido: `"inteligência artificial" viagem when:7d` → 37 itens, matéria na posição #1)
+
+O filtro de corpo (`cita()`) continua sendo o portão final nas duas camadas, então a camada 2 não infla o banco.
 
 ## Reclassificação
 
-Para reclassificar todas as notícias já existentes no banco com o novo modelo:
-
-**Via GitHub Actions (recomendado):**
-- Vá em **Actions → Reclassificar Sentimentos → Run workflow**
-- Todas as 37 notícias serão reprocessadas com o modelo Qwen
+**Via GitHub Actions (recomendado):** Actions → *Reclassificar Sentimentos* → Run workflow.
+⚠️ Consome ~40 das 50 requisições gratuitas do dia. Rode uma vez pela manhã.
 
 **Localmente:**
 ```bash
 cd github-actions
 export SUPABASE_URL="https://uirvzlxhuyaentizyden.supabase.co"
 export SUPABASE_KEY="<service_role_key>"
-export LLM_API_KEY="<openrouter_key>"
-export LLM_MODEL="Qwen/Qwen2.5-7B-Instruct"
+export LLM_API_KEY="<chave_openrouter>"
+export LLM_MODEL="qwen/qwen3.8-27b:free"
 python sentiment.py --force
 ```
-
-Ou use `python reclassificar.py` para apenas zerar os sentimentos (o pipeline faz a reclassificação no próximo ciclo).
-
-## Regra Kennedy Corrêa
-
-Quando Kennedy Corrêa aparece na notícia (como palestrante, moderador ou coordenador do evento), o LLM recebe um prompt especial que analisa ESTRITAMENTE o contexto da participação dele. Isso garante que notícias sobre eventos onde ele participou sejam classificadas corretamente (POSITIVA se ele estava como palestrante, NEGATIVA se fosse criticado, NEUTRA se apenas citado).
 
 ## Banco de dados (Supabase)
 
@@ -106,7 +122,7 @@ export SUPABASE_URL="..."
 export SUPABASE_KEY="..."
 export KEYWORDS="Palavra1;Palavra2;Palavra3"
 export LLM_API_KEY="..."
-export LLM_MODEL="Qwen/Qwen2.5-7B-Instruct"
+export LLM_MODEL="qwen/qwen3.8-27b:free"
 
 # Executar manualmente
 python monitor.py

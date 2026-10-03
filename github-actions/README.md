@@ -24,7 +24,7 @@ indicadores ao longo do tempo.
 - **Supabase** (Postgres gratuito) como banco de dados persistente
 - **Telegram Bot API** para envio do resumo
 - **GitHub Actions** como agendador (cron) e runtime — roda na nuvem, 24/7
-- **LLM**: Qwen/Qwen2.5-7B-Instruct via OpenRouter para análise de sentimento
+- **LLM**: `qwen/qwen3.8-27b:free` via OpenRouter para análise de sentimento
 
 ## Arquitetura
 
@@ -39,19 +39,47 @@ GitHub Actions (cron 05:00/05:30/06:00 BRT)
 ## Análise de sentimento
 
 ### Modelo LLM (principal)
-Usa o modelo **Qwen/Qwen2.5-7B-Instruct** via OpenRouter para classificar o conteúdo integral da notícia.
+Usa `qwen/qwen3.8-27b:free` via OpenRouter (tier gratuito, custo zero) para
+ler a notícia inteira e classificar **pelo papel que a pessoa exerce na
+matéria**, não pelo tema dela:
 
-O LLM recebe contexto especial sobre o mentor **Kennedy Corrêa**: quando Kennedy aparece como palestrante, moderador ou coordenador, o sistema analisa ESTRICTAMENTE o contexto da participação. Se ele é palestrante = POSITIVA; se é criticado = NEGATIVA; se apenas citado = NEUTRA.
+| Situação | Resultado |
+|---|---|
+| Palestrante, especialista citado como fonte, anfitrião, organizador, elogiado | **POSITIVA** |
+| Acusado, negatively citado, vítima de violência, contexto de crime | **NEGATIVA** |
+| Apenas citado de passagem (nota de rodapé, lista) ou o assunto não é sobre ela | **NEUTRA** |
 
-### Léxico PT-BR (fallback)
-Se o LLM não estiver disponível, usa um léxico com 200+ palavras em português brasileiro, incluindo regras de negação (ex: "não é bom" = negativo).
+Vale para qualquer pessoa monitorada — não há caso especial por nome.
+
+### Léxico PT-BR (reserva)
+200+ palavras com regras de negação. Só entra **se a IA falhar**, e nesse
+caso o sistema **avisa no Telegram** dizendo quais notícias saíram do léxico.
+
+### Checagem de saúde
+`checa_llm()` testa a chave e o modelo **antes** de classificar. Sem isso,
+uma chave vazia ou um modelo renomeado gera um workflow "verde" com 100% das
+classificações vindo do léxico — foi o que aconteceu em 26/09 e ninguém
+percebeu.
 
 ### Modo reclassificação
-Para reclassificar todas as notícias existentes com o novo modelo:
 ```bash
 python sentiment.py --force
 ```
-Isso busca TODAS as 37+ notícias no banco e as reclassifica com o LLM Qwen.
+⚠️ Consome ~40 das 50 requisições gratuitas do dia. Rode uma vez pela manhã.
+
+## Coleta em 2 camadas
+
+Buscar só pelo nome **não pega matéria de veículo com paywall**: o Google
+não indexa o corpo, e o nome costuma estar no meio do artigo. O filtro de
+corpo (`cita()`) aceitaria a matéria — ela é que nunca chegava até ele.
+
+Por isso o `collect.py` coleta em duas camadas:
+
+1. **Por nome** — barata e precisa
+2. **Por tema**, sempre com 2+ termos — com 1 termo o Google News satura em
+   100 itens e a matéria escorre; com 2 ela volta completa e vem no topo
+
+O filtro de corpo continua sendo o portão final nas duas camadas.
 
 ## Segurança
 
@@ -71,7 +99,7 @@ Isso busca TODAS as 37+ notícias no banco e as reclassifica com o LLM Qwen.
    - `SUPABASE_URL` — URL do projeto Supabase
    - `SUPABASE_KEY` — chave `service_role` (grava no banco)
    - `LLM_API_KEY` — chave do OpenRouter (obrigatório para LLM)
-   - `LLM_MODEL` — modelo LLM (padrão: `Qwen/Qwen2.5-7B-Instruct`)
+   - `LLM_MODEL` — modelo LLM (padrão: ``qwen/qwen3.8-27b:free``)
    - `TG_TOKEN` — token do Bot do Telegram
    - `TG_CHAT_ID` — chat de destino do resumo
    - `KEYWORDS` — palavras-chave do cliente
@@ -109,7 +137,7 @@ painel-kenneth-7f3a9c.html      # painel web com gráficos
   silêncio e só alimentam o banco.
 - O filtro de resumo considera "o dia" como o dia anterior à execução
   (`RESUMO_DIAS_ATRAS = 1`), configurável em `send_summary.py`.
-- O modelo LLM Qwen/Qwen2.5-7B-Instruct foi escolhido por ter melhor suporte
+- O modelo LLM `qwen/qwen3.8-27b:free` foi escolhido por ter melhor suporte
   a português brasileiro e contexto de 128k tokens.
 - A reclassificação (`sentiment.py --force`) processa todas as notícias do banco,
   incluindo as que já tinham sentimento atribuído.
