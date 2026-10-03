@@ -164,10 +164,14 @@ def triagem(titulo, keyword, fonte="", link_google=""):
         return True, url, "nao_conferida"
     return cita(texto, keyword), url, "corpo"
 
-# Janela do FILTRO em dias: noticias publicadas ate N dias atras sao salvas.
-# (O Google com when:2d so devolve ~2 dias, mas o filtro garante o acumulo
-#  caso o feed traga mais. Aumente se quiser janela maior.)
-LAST_N_DAYS = 7
+# Janela de data. Antes era 7 dias, o que faz o monitor perder materia:
+# uma materia so seria coletada 7 dias depois de publicada, e o cliente
+# ja teria visto o assunto em outro lugar.
+#
+# 14 dias e um meio-termo. Para a CAMADA 3 (busca por veiculo) a janela
+# e maior: como o filtro por data e feito em Python, aumenta-la nao custa
+# requisição - só evita que materia valida do mes passado passe batido.
+LAST_N_DAYS = 14
 
 BRT = timezone(timedelta(hours=-3))  # Brasil sem DST desde 2019 -> sempre UTC-3
 
