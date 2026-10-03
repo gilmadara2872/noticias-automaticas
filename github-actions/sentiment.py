@@ -182,15 +182,37 @@ def lexicon_sentiment(title, content):
 # passagem = NEUTRA; acusado ou criticado = NEGATIVA.
 PROMPT_REGRAS = (
     "Voce avalia a REPUTACAO de uma pessoa especifica em uma noticia. "
-    "O que importa e o PAPEL que essa pessoa DESEMPENHA na noticia, e NAO o tema dela.\n\n"
-    "Como classificar:\n"
-    "- POSITIVA: a pessoa aparece como palestrante, especialista citado como "
-    "fonte confiavel, anfitriao, organizador, ou elogiada.\n"
-    "- NEGATIVA: a pessoa e acusada, criticada, sofre violencia, aparece em "
-    "contexto de crime/denuncia/processo, ou e ridicularizada.\n"
-    "- NEUTRA: a pessoa e apenas citada de passagem, sem elogio nem acusacao "
-    "(nota de rodape, lista de itens, mencao incidental) ou o assunto da "
-    "noticia nao e sobre ela.\n\n"
+    "O que importa e o PAPEL que essa pessoa DESEMPENHA na noticia, e NAO "
+    "o tema dela.\n\n"
+    "Procure a FRASE em que o nome aparece e leia o que essa frase faz:\n"
+    "  1) A pessoa e O ASSUNTO da materia, ou e elogiada, criticada ou "
+    "acusada -> POSITIVA ou NEGATIVA.\n"
+    "  2) A pessoa da uma OPINAO sobre o tema (explica, avalia, analisa, "
+    "comenta, recomenda) e e apresentada como fonte -> POSITIVA, porque a "
+    "reputacao dela esta em jogo e ela se posiciona.\n"
+    "  3) A pessoa e so um NOME EM LISTA (palestrantes confirmados, "
+    "participantes, lista de presentes, rodape, tag, link relacionado, "
+    "assuntos relacionados) -> NEUTRA. Nao ha juzo nenhum sobre ela.\n"
+    "  4) A materia nao e sobre ela e o nome so aparece como mencao "
+    "incidental -> NEUTRA.\n"
+    "  5) A pessoa e acusada, criticada, vitima de violencia, ou aparece em "
+    "contexto de crime, denuncia ou processo -> NEGATIVA.\n\n"
+    "REGRA QUE RESOLVE O ERRO MAIS COMUM:\n"
+    "Ser citado como especialista NAO e automaticamente positivo. Boa parte "
+    "dessas materias e factual, e citar o nome so diz de onde veio a "
+    "informacao.\n\n"
+    "Exemplos do caso 3, que e o que mais se repete:\n"
+    "  'Entre os palestrantes confirmados estao A, B e Kenneth Correa' -> NEUTRA\n"
+    "  'Assuntos Relacionados: Kenneth Correa' -> NEUTRA\n"
+    "Exemplo do caso 2:\n"
+    "  'Para Kenneth Correa, professor da FGV, os modelos chineses passaram "
+    "a ocupar posicao relevante' -> POSITIVA\n"
+    "  'Segundo o especialista Kenneth Correa, enviar foto para uma IA traz "
+    "risco' -> POSITIVA (ele da a opiniao; o risco e do servico, nao dele)\n"
+    "Exemplo do caso 5:\n"
+    "  'Advogado afirma que Kenneth Correa participava do esquema' -> NEGATIVA\n\n"
+    "NUNCA responda POSITIVA apenas porque o tema da noticia e positivo ou "
+    "porque a pessoa e citada. Responda POSITIVA apenas nos casos 1 e 2.\n\n"
     "Responda com UMA PALAVRA: POSITIVA, NEGATIVA ou NEUTRA."
 )
 
@@ -275,8 +297,9 @@ def main(force=False):
         return
 
     print(f"{len(resp)} noticias para processar. Analisando...")
-    n_ia = n_lex = 0
+    n_ia = n_lex = n_neutra = 0
     falhas = []
+    sem_texto = []
 
     for n in resp:
         content = fetch_article(n["link"])
@@ -290,6 +313,26 @@ def main(force=False):
         # esta sendo avaliado. Nao ha mais caso especial "Kennedy": a regra
         # de participacao vale para qualquer pessoa monitorada.
         alvo = n.get("keyword") or ""
+
+        # ---------------------------------------------------------- PORTÃO
+        # Se o download falhou (paywall, JS, site fora do ar), `content`
+        # fica vazio/curto. Classificar nesse estado e inventar: o modelo
+        # so ve o titulo e quase tudo vira POSITIVA. Foi assim que 7
+        # noticias sem o nome no texto acabaram classificadas.
+        if len(content) < 300:
+            print(f"  {titulo[:50]} -> SEM TEXTO ({len(content)} chars) "
+                  f"[IGNORADA - sem corpo nao da para classificar]")
+            falhas.append(f"{titulo[:50]} (download falhou)")
+            n_lex += 0          # nao conta como lexico: nem chegou a tentar
+            sem_texto.append(titulo[:60])
+            continue
+
+        # Se o nome nao aparece no corpo, esta noticia nao e sobre a pessoa.
+        if alvo and not monitor.cita(content, alvo):
+            print(f"  {titulo[:50]} -> NEUTRA [IGNORADA - nome ausente no corpo]")
+            common.sb_update_sentimento(n["link"], "NEUTRA", content)
+            n_neutra += 1
+            continue
 
         sent = llm_sentiment(titulo, content, alvo) if ok_llm else None
         if sent:
@@ -307,7 +350,9 @@ def main(force=False):
             print(f"    aviso: banco respondeu {s2}")
         time.sleep(2)
 
-    print(f"\nRESUMO: {n_ia} classificada(s) por IA | {n_lex} pelo lexico de reserva")
+    print(f"\nRESUMO: {n_ia} classificada(s) por IA | {n_lex} pelo lexico de "
+          f"reserva | {n_neutra} neutra(s) sem o nome no corpo | "
+          f"{len(sem_texto)} sem texto")
 
     # ---------------------------------------------------------------
     # 3. ALARME. Se qualquer coisa caiu no lexico, o cliente e avisado.
@@ -324,6 +369,19 @@ def main(force=False):
             "nao por leitura do texto - o resultado delas e pouco confiavel:\n"
             f"{lista}{mais}\n\n"
             f"Motivo: {msg_saude}")
+
+    # Alarme separado para download quebrado: e falha do scraper, nao da
+    # IA. Sem este aviso o cliente acha que a materia foi analisada.
+    if sem_texto:
+        lista = "\n".join(f"- {t}" for t in sem_texto[:6])
+        mais = f"\n... e mais {len(sem_texto)-6}" if len(sem_texto) > 6 else ""
+        avisa_telegram(
+            "AVISO: MATERIA SEM TEXTO NAO FOI ANALISADA\n\n"
+            f"{len(sem_texto)} noticia(s) entraram no banco mas o corpo nao "
+            "pode ser baixado (paywall, pagina em JavaScript ou site fora "
+            "do ar). Sem texto nao da para classificar com precisao, entao "
+            "foram deixadas sem sentimento.\n\n"
+            f"{lista}{mais}")
 
     print("Sentimento concluido.")
 

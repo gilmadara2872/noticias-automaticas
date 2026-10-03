@@ -55,6 +55,34 @@ BUSCAS_TEMA = [
     'IA inteligencia artificial profissional when:7d',
 ]
 
+# ---------------------------------------------------------------- CAMADA 3
+# Busca por VEICULO, em vez de por assunto.
+#
+# Por que: as consultas de tema sao uma lista adivinhada. Um veiculo grande
+# publica materia sobre QUALQUER assunto - seguranca, dados, educacao,
+# economia digital - e o nome do Kenneth no meio do texto. Busca por
+# assunto so acha se o titulo usar aquele assunto; busca por veiculo pega
+# tudo que aquele veiculo publicou na janela.
+#
+# A lista de veiculos e FINITA e CONHECIDA. Nao e adivinhacao.
+# O filtro de corpo (cita) continua decidindo o que e dele.
+VEICULOS = [
+    'site:oglobo.globo.com "Kenneth Corrêa" when:30d',
+    'site:estadao.com.br "Kenneth Corrêa" when:30d',
+    'site:folha.uol.com.br "Kenneth Corrêa" when:30d',
+    'site:valor.globo.com "Kenneth Corrêa" when:30d',
+    'site:cnnbrasil.com.br "Kenneth Corrêa" when:30d',
+    'site:uol.com.br "Kenneth Corrêa" when:30d',
+    # sem aspas no nome: veiculo grande costuma escrever "Correa" sem acento
+    'site:oglobo.globo.com Kenneth Correa when:30d',
+    'site:estadao.com.br Kenneth Correa when:30d',
+    'site:cnnbrasil.com.br Kenneth Correa when:30d',
+    'site:valor.globo.com Kenneth Correa when:30d',
+    # assinatura em portal agregador
+    '"Kenneth Corrêa" site:*.com.br when:30d',
+    '"Kenneth Corrêa" site:*.br when:30d',
+]
+
 # Teto de downloads por consulta de tema. O ganho marginal cai muito depois
 # das primeiras e o custo e tempo de rede (rate limit do veiculo).
 MAX_DOWNLOADS_POR_TEMA = 20
@@ -140,25 +168,29 @@ def coletar(keyword, dias_janela=14, verbose=True):
                     print(f"    [nome] {r['title'][:58]} ({r['checagem']})")
             time.sleep(0.4)
 
-    # ------------------------------------------------ CAMADA 2: por tema
-    for q in BUSCAS_TEMA:
-        baixados = achou = 0
-        for e in _rss(q):
-            if baixados >= MAX_DOWNLOADS_POR_TEMA:
-                break
-            titulo = e["title"].strip().lower()[:80]
-            if titulo in vistos or titulo in testados:
-                continue
-            baixados += 1
-            r = avaliar(e)
-            if r:
-                saida.append(r)
-                achou += 1
-                if verbose:
-                    print(f"    [TEMA] {r['title'][:58]} ({r['checagem']})")
-            time.sleep(PAUSA)
-        if verbose:
-            print(f"  tema {q[:44]:44} baixados={baixados:3} novos={achou}")
+    # ------------------------------- CAMADAS 2 e 3: tema e veiculo
+    # Mesmo algoritmo para os dois, so muda a lista de consultas e o rotulo.
+    # A CAMADA 3 e a que fecha a lacuna de assunto: um veiculo grande publica
+    # sobre qualquer tema, e o nome do Kenneth esta no meio do texto.
+    for rotulo, consultas in (("TEMA", BUSCAS_TEMA), ("VEICULO", VEICULOS)):
+        for q in consultas:
+            baixados = achou = 0
+            for e in _rss(q):
+                if baixados >= MAX_DOWNLOADS_POR_TEMA:
+                    break
+                titulo = e["title"].strip().lower()[:80]
+                if titulo in vistos or titulo in testados:
+                    continue
+                baixados += 1
+                r = avaliar(e)
+                if r:
+                    saida.append(r)
+                    achou += 1
+                    if verbose:
+                        print(f"    [{rotulo:7}] {r['title'][:58]} ({r['checagem']})")
+                time.sleep(PAUSA)
+            if verbose:
+                print(f"  {rotulo:7} {q[:44]:44} baixados={baixados:3} novos={achou}")
 
     # dedup final por titulo
     unicos, vistos2 = [], set()
