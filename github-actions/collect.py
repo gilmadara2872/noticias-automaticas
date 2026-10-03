@@ -67,28 +67,31 @@ BUSCAS_TEMA = [
 # A lista de veiculos e FINITA e CONHECIDA. Nao e adivinhacao.
 # O filtro de corpo (cita) continua decidindo o que e dele.
 VEICULOS = [
-    # site: funciona no RSS do Google News - testado. Sem isto, materia de
-    # Folha/Valor/UOL nao entrava: so aparecia em busca por assunto.
-    'site:folha.uol.com.br "Kenneth Corrêa" when:30d',
-    'site:valor.globo.com "Kenneth Correa" when:30d',
-    'site:uol.com.br "Kenneth Corrêa" when:30d',
-    'site:oglobo.globo.com "Kenneth Corrêa" when:30d',
-    'site:estadao.com.br "Kenneth Corrêa" when:30d',
-    'site:cnnbrasil.com.br "Kenneth Corrêa" when:30d',
+    # SEM 'when:' de proposito - medido: o operador zera estas consultas.
+    #   site:folha.uol.com.br "Kenneth Corrêa"   -> 2 itens sem when, 0 com
+    #   site:folha.uol.com.br Kenneth Correa    -> 100 itens sem when, 1 com
+    # A janela de data nao se perde: avaliar() descarta em Python o que for
+    # mais velho que dias_janela. Filtrar duas vezes so custava materia.
+    'site:folha.uol.com.br "Kenneth Corrêa"',
+    'site:uol.com.br "Kenneth Corrêa"',
+    'site:oglobo.globo.com "Kenneth Corrêa"',
+    'site:estadao.com.br "Kenneth Corrêa"',
+    'site:cnnbrasil.com.br "Kenneth Corrêa"',
+    'site:valor.globo.com "Kenneth Corrêa"',
     # sem acento: veiculo grande costuma publicar "Correa"
-    'site:oglobo.globo.com Kenneth Correa when:30d',
-    'site:estadao.com.br Kenneth Correa when:30d',
-    'site:cnnbrasil.com.br Kenneth Correa when:30d',
-    'site:folha.uol.com.br Kenneth Correa when:30d',
+    'site:folha.uol.com.br Kenneth Correa',
+    'site:oglobo.globo.com Kenneth Correa',
+    'site:estadao.com.br Kenneth Correa',
+    'site:cnnbrasil.com.br Kenneth Correa',
+    'site:valor.globo.com Kenneth Correa',
     # fonte nomeada (source: tambem funciona no RSS)
-    'source:Estadão "Kenneth Corrêa" when:30d',
-    'source:Folha "Kenneth Corrêa" when:30d',
-    # agregadores que republicam materia de veiculo grande
-    '"Kenneth Corrêa" folha when:30d',
-    '"Kenneth Corrêa" valor when:30d',
-    '"Kenneth Corrêa" oglobo when:30d',
-    '"Kenneth Correa" when:30d',
+    'source:Estadão "Kenneth Corrêa"',
+    # veiculo como termo solto: pega republicacao em portal agregador
+    '"Kenneth Corrêa" folha',
+    '"Kenneth Corrêa" oglobo',
+    '"Kenneth Corrêa" valor',
 ]
+
 
 # Teto de downloads por consulta de tema. O ganho marginal cai muito depois
 # das primeiras e o custo e tempo de rede (rate limit do veiculo).
