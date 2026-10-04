@@ -1,11 +1,6 @@
 name: Reclassificar Sentimentos
 on:
   workflow_dispatch:
-    inputs:
-      lote:
-        description: 'Links (um por linha) para reclassificar. Vazio = todas.'
-        required: false
-        type: string
 jobs:
   reclassify:
     runs-on: ubuntu-latest
@@ -27,22 +22,26 @@ jobs:
           # e o Telegram respondia 404 - o alarme sumia sem deixar rastro.
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-          # Vaem por variavel de ambiente, nao interpolados no script.
-          LOTE: ${{ inputs.lote }}
         run: |
           cd github-actions
           pip install -r requirements.txt 2>/dev/null || true
-          # LOTE opcional: um link por linha. Sem este argumento, processa
-          # tudo (comportamento antigo). Existe porque a OpenRouter da 50
-          # requisicoes/dia: uma reclassificacao de 47_noticias usa 49 delas
-          # e nao sobra nada para uma segunda tentativa no mesmo dia.
+          # Lote opcional: um link por linha, em github-actions/lote.txt
           #
-          # Os links vao por ARQUIVO, nunca embutidos no shell: URLs do
-          # Google News trazem aspas e & que corrompiam o script
-          # ("syntax error: unexpected end of file"). O here-doc entre
-          # aspas simples impede o shell de interpretar o conteudo.
-          if [ -n "$LOTE" ]; then
-            printf '%s' "$LOTE" > lote.txt
+          # POR QUE O INPUT FOI ABANDONADO: passar os links pelo input do
+          # workflow quebrava o shell em dois jeitos seguidos -
+          #   1) interpolado no script, aspas e & da URL corrompiam o codigo
+          #   2) via variavel de ambiente, o GitHub ainda quebrava: o valor
+          #      multilinha era despejado no script antes do env, e o
+          #      resultado era "syntax error: unexpected end of file".
+          #
+          # Por isso o lote vai por ARQUIVO versionado no repositorio. Sem
+          # entrada do usuario no shell, nao ha o que quebrar. O arquivo e
+          # opcional: se nao existir, processa tudo.
+          if [ -f lote.txt ]; then
+            n=$(grep -c . lote.txt || true)
+            echo "Lote detectado: $n link(s)"
             python sentiment.py --force --lote lote.txt
           else
+            echo "Sem lote.txt: reclassificando todas as noticias."
             python sentiment.py --force
+          fi
