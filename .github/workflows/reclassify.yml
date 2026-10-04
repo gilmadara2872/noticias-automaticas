@@ -1,6 +1,11 @@
 name: Reclassificar Sentimentos
 on:
   workflow_dispatch:
+    inputs:
+      lote:
+        description: 'Links (um por linha) para reclassificar. Vazio = todas.'
+        required: false
+        type: string
 jobs:
   reclassify:
     runs-on: ubuntu-latest
@@ -25,4 +30,12 @@ jobs:
         run: |
           cd github-actions
           pip install -r requirements.txt 2>/dev/null || true
-          python sentiment.py --force
+          # LOTE opcional: um link por linha. Sem este argumento, processa
+          # tudo (comportamento antigo). Existe porque a OpenRouter da 50
+          # requisicoes/dia: uma reclassificacao de 47_noticias usa 49 delas
+          # e nao sobra nada para uma segunda tentativa no mesmo dia.
+          if [ -n "${{ inputs.lote }}" ]; then
+            printf '%s' '${{ inputs.lote }}' > /tmp/lote.txt
+            python sentiment.py --force --lote /tmp/lote.txt
+          else
+            python sentiment.py --force

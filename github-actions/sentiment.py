@@ -256,7 +256,7 @@ def llm_sentiment(title, content, keyword=""):
     return None
 
 
-def main(force=False):
+def main(force=False, lote=None):
     # ---------------------------------------------------------------
     # 1. SAUDE DA IA - antes de tudo.
     # Sem isto, chave vazia ou modelo renomeado = workflow "success"
@@ -283,6 +283,23 @@ def main(force=False):
             "sentimento": "is.null",
             "limit": "200",
         })
+
+    # ---------------------------------------------------------------
+    # 2b. LOTE. A OpenRouter da 50 requisicoes/dia no tier gratuito, e
+    # uma reclassificacao das 47_noticias consome 49 delas. Isso impede
+    # de refazer tudo duas vezes no mesmo dia. Com --lote, processa
+    # apenas os links informados e economiza cota para o restante.
+    # ---------------------------------------------------------------
+    if lote and isinstance(resp, list) and resp:
+        avisos = {l.strip() for l in lote if l.strip()}
+        antes = len(resp)
+        resp = [r for r in resp if r.get("link") in avisos]
+        print(f"Lote: {len(resp)} de {antes} noticia(s) selecionadas "
+              f"({antes - len(resp)} fora do lote foram ignoradas).")
+        if not resp:
+            print("  nenhum link do lote existe no banco.")
+            return
+
     if not isinstance(resp, list) or not resp:
         print(f"select status={st}; nada p/ analisar ou erro.")
         if not ok_llm:
@@ -409,4 +426,19 @@ def avisa_telegram(texto):
 
 if __name__ == "__main__":
     force = "--force" in sys.argv
-    main(force=force)
+
+    # --lote <arquivo>: um link por linha, para processar so um pedaco e
+    # economizar cota da OpenRouter (50 req/dia no tier gratuito).
+    lote = None
+    if "--lote" in sys.argv:
+        i = sys.argv.index("--lote")
+        if i + 1 < len(sys.argv):
+            try:
+                with open(sys.argv[i + 1], encoding="utf-8") as fh:
+                    lote = [ln.strip() for ln in fh if ln.strip()]
+            except OSError as e:
+                print(f"nao consegui ler o lote {sys.argv[i+1]}: {e}")
+        else:
+            print("--lote precisa do caminho de um arquivo")
+
+    main(force=force, lote=lote)
