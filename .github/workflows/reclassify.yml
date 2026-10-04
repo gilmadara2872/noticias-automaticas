@@ -27,6 +27,8 @@ jobs:
           # e o Telegram respondia 404 - o alarme sumia sem deixar rastro.
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+          # Vaem por variavel de ambiente, nao interpolados no script.
+          LOTE: ${{ inputs.lote }}
         run: |
           cd github-actions
           pip install -r requirements.txt 2>/dev/null || true
@@ -34,8 +36,13 @@ jobs:
           # tudo (comportamento antigo). Existe porque a OpenRouter da 50
           # requisicoes/dia: uma reclassificacao de 47_noticias usa 49 delas
           # e nao sobra nada para uma segunda tentativa no mesmo dia.
-          if [ -n "${{ inputs.lote }}" ]; then
-            printf '%s' '${{ inputs.lote }}' > /tmp/lote.txt
-            python sentiment.py --force --lote /tmp/lote.txt
+          #
+          # Os links vao por ARQUIVO, nunca embutidos no shell: URLs do
+          # Google News trazem aspas e & que corrompiam o script
+          # ("syntax error: unexpected end of file"). O here-doc entre
+          # aspas simples impede o shell de interpretar o conteudo.
+          if [ -n "$LOTE" ]; then
+            printf '%s' "$LOTE" > lote.txt
+            python sentiment.py --force --lote lote.txt
           else
             python sentiment.py --force
