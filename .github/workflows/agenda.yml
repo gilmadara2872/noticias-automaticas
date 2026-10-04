@@ -60,7 +60,10 @@ jobs:
         run: python sentiment.py
 
   send:
-    if: github.event.schedule == '0 9 * * *'
+    # Antes so rodava no schedule das 06:00. Com workflow_dispatch o job
+    # era sempre pulado, o que impedia confirmar que a mensagem chega e
+    # ver o formato que o cliente recebe.
+    if: github.event.schedule == '0 9 * * *' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     defaults:
       run:
