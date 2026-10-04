@@ -15,10 +15,14 @@ jobs:
   monitor:
     if: github.event.schedule == '0 8 * * *' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    # A coleta em 2 camadas baixa o corpo de varias materias para conferir
-    # se citam o cliente. Isso leva bem mais que os 6 minutos padrao do
-    # GitHub Actions (e o timeout dao 6h).
-    timeout-minutes: 45
+    # A coleta em 3 camadas baixa o corpo de varias materias para conferir
+    # se o nome esta no texto. Medido: passa de 60 minutos, porque cada
+    # consulta baixa ate 20 paginas com pausa de 1,2s.
+    #
+    # O pipeline e sequencial (monitor -> sentiment -> send). Se o monitor
+    # estoura, o resumo do Telegram NAO e enviado - foi o que aconteceu
+    # em 2026-10-04, quando o disparo ficou ~1h sem concluir.
+    timeout-minutes: 120
     defaults:
       run:
         working-directory: github-actions
