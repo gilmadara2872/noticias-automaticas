@@ -312,7 +312,10 @@ def main(force=False, lote=None):
               f"({antes - len(resp)} fora do lote foram ignoradas).")
         if not resp:
             print("  nenhum link do lote existe no banco.")
-            return
+            # Sai com erro: um lote que nao casa com nada e um lote
+            # digitado errado, e nao um sucesso. Antes disso o run
+            # terminava "success" sem ter reclassificado nenhuma.
+            sys.exit(1)
 
     if not isinstance(resp, list) or not resp:
         print(f"select status={st}; nada p/ analisar ou erro.")
@@ -449,7 +452,17 @@ if __name__ == "__main__":
         if i + 1 < len(sys.argv):
             try:
                 with open(sys.argv[i + 1], encoding="utf-8") as fh:
-                    lote = [ln.strip() for ln in fh if ln.strip()]
+                    # Comentarios comecados por # sao do proprio arquivo de
+                    # lote e nao sao links. Sem este filtro, um lote.txt que
+                    # so tem comentarios vira uma lista de "links" invalidos,
+                    # o filtro abaixo zera o banco e o run termina com
+                    # "success" sem reclassificar NADA - que foi o que
+                    # aconteceu em 2026-10-04.
+                    lote = [ln.strip() for ln in fh
+                            if ln.strip() and not ln.strip().startswith("#")]
+                    if not lote:
+                        print("lote.txt nao tem nenhum link (so comentarios). "
+                              "Processando todas as noticias.")
             except OSError as e:
                 print(f"nao consegui ler o lote {sys.argv[i+1]}: {e}")
         else:
