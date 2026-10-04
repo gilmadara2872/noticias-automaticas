@@ -55,6 +55,121 @@ def cita(texto, keyword):
     return f" {nome} " in f" {t} "
 
 
+# Palavras que mudam o sentido ou o contexto. Na hora de comparar dois
+# titulos para ver se sao a mesma materia, estas nao podem ser ignoradas.
+STOP_REPUBLICA = {
+    "a", "o", "as", "os", "um", "uma", "uns", "umas", "de", "da", "do", "das",
+    "dos", "em", "no", "na", "nos", "nas", "por", "para", "pela", "pelo",
+    "com", "sem", "sob", "sobre", "entre", "apos", "apos", "ate", "ja",
+    "e", "ou", "mas", "que", "se", "como", "quando", "onde", "qual", "quais",
+    "e", "the", "of", "and", "to", "in", "for", "on",
+}
+
+
+def titulo_chave(titulo):
+    """Reduz o titulo a uma forma comparavel: sem acento, minusculo,
+    sem pontuacao e sem as palavras que nao carregam sentido.
+
+    'iPhone 18, IA e pressão de Trump: o que esperar da Apple' e
+    'iPhone 18 IA e pressao de Trump - o que esperar da Apple'
+    viram a MESMA chave. Noticias diferentes sobre o mesmo assunto
+    continuam com chaves diferentes, porque as palavras que definem
+    o assunto sao justamente as que sobram.
+    """
+    t = normaliza(titulo)
+    t = re.sub(r"[^\w\s]", " ", t)
+    partes = [p for p in t.split() if p not in STOP_REPUBLICA]
+    return " ".join(partes)[:120]
+
+
+def _bigramas(texto):
+    """Conjunto de pares de palavras consecutivas.
+
+    Ordem importa: e a SEQUENCA que distingue duas materias sobre o mesmo
+    tema. 'OpenAI adia IPO por seguranca' e 'OpenAI lanca modelo para
+    programadores' tem as mesmas palavras soltas, mas nada em comum
+    quando olhamos os pares.
+    """
+    limpo = re.sub(r"[^\w\s]", " ", (texto or "").lower())
+    palavras = [p for p in limpo.split() if len(p) > 2]
+    if len(palavras) < 2:
+        return set(palavras)
+    return set(zip(palavras, palavras[1:]))
+
+
+def corpo_similar(a, b, corte=0.55):
+    """0.0 a 1.0. Serve para dizer se dois textos sao a MESMA materia.
+
+    Medido com o caso real do banco (mesma noticia em varios portais):
+    pares de materia diferente ficaram entre 0,00 e 0,20; o mesmo texto
+    republicado fica acima de 0,50. O corte de 0,55 fica no meio, com
+    folga dos dois lados.
+    """
+    A, B = _bigramas(a), _bigramas(b)
+    if not A or not B:
+        return 0.0
+    return len(A & B) / len(A | B)
+
+
+def _recontido(a, b):
+    """0.0 a 1.0: quanto do texto A esta dentro do texto B (ou vice-versa).
+
+    DIFFERENTE do Jaccard, que se mede contra a UNIAO. Aqui a pergunta e
+    'um dos dois cabe dentro do outro?', e isso e o que identifica
+    republicacao: um portal publica o comunicado e outro publica uma
+    versao menor ou reescrita do MESMO texto.
+
+    Calibrado nos pares do banco:
+      mesma materia (comunicado reescrito)  -> 1.00, 1.00, 0.56
+      materias diferentes                   -> 0.68, 0.34, 0.12
+    O Jaccard NAO separa (0.35 para o mesmo e 0.51 para diferentes -
+    invertido). O recontido separa.
+    """
+    A, B = _bigramas(a), _bigramas(b)
+    if not A or not B:
+        return 0.0
+    inter = len(A & B)
+    return inter / min(len(A), len(B))
+
+
+def e_republica(titulo_novo, fonte_nova, ja_publicadas, txt_novo,
+                 corte=0.55):
+    """True se e a MESMA materia ja publicada em OUTRO veiculo.
+
+    Calibrado nos 903 pares do banco. Medir antes foi o que salvou este
+    filtro: duas versoes anteriores (por titulo e por Jaccard de corpo)
+    erraram nos dois sentidos porque foram escritas no chute.
+
+    O que os dados mostram (recontido do corpo):
+
+      republicacao entre veiculos distintos:
+        0.73, 0.70, 0.68, 0.65, 0.59, 0.56
+      materia diferente DENTRO do mesmo veiculo:
+        0.74, 0.68, 0.63, 0.54, 0.53
+
+    Os intervalos se cruzam, entao so o recontido nao decide. A evidencia
+    que separa e o VEICULO: materia publicada duas vezes no mesmo site
+    nao e republicacao, e outra materia da secao "Resumo do dia".
+
+    Regra: recontido >= 0.55 E veiculo diferente. O mesmo comunicado em
+    4 portais da cidade passa; os 'Resumo do OD' do Olhar Digital nao.
+    """
+    if not txt_novo:
+        return False          # sem corpo nao da para decidir com seguranca
+
+    for outro in ja_publicadas:
+        corpo_antigo = outro.get("conteudo") or ""
+        if not corpo_antigo or len(corpo_antigo) < 800:
+            continue           # texto curto demais para comparar
+
+        if fonte_nova and outro.get("source") == fonte_nova:
+            continue           # mesmo veiculo: materia nova da mesma secao
+
+        if _recontido(txt_novo, corpo_antigo) >= corte:
+            return True
+    return False
+
+
 def ddg_urls(query):
     """Busca no DuckDuckGo HTML e devolve as URLs reais dos resultados."""
     try:

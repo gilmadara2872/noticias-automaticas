@@ -28,6 +28,12 @@ from datetime import datetime, timedelta, timezone
 
 import monitor
 
+# import tardio: collect e importado por monitor, entao importar common no
+# topo criaria ciclo. Dentro da funcao resolve na hora do uso.
+def _common():
+    import common
+    return common
+
 BRT = timezone(timedelta(hours=-3))
 
 # ---------------------------------------------------------------- CAMADA 1
@@ -121,11 +127,32 @@ def _dt_brt(e):
         return None
 
 
+def textos_publicados():
+    """Materias ja no banco, com titulo e corpo.
+
+    A comparacao de republicacao usa o CORPO, porque so o titulo nao
+    distingue 'mesma materia, titulo variado' de 'assunto parecido,
+    materia diferente' - erro que uma versao anterior cometia nos dois
+    sentidos.
+    """
+    st, resp = _common().sb_select({
+        "select": "title,conteudo,source", "limit": "300"})
+    if not isinstance(resp, list) or not resp:
+        return []
+    return [{"title": r.get("title") or "", "conteudo": r.get("conteudo") or "",
+             "source": r.get("source") or ""} for r in resp if r.get("conteudo")]
+
+
 def coletar(keyword, dias_janela=14, verbose=True):
     """Devolve lista de dicts no mesmo formato que o monitor.py grava."""
     vistos = set()      # titulos aceitos
     testados = set()    # titulos ja baixados: evita refazer o mesmo download
     saida = []
+
+    ja_publicadas = textos_publicados()
+    if verbose:
+        print(f"  {len(ja_publicadas)} materia(s) com texto ja no banco "
+              f"(base para detectar republicacao)")
 
     def avaliar(e):
         """Verifica e devolve o dict pronto, ou None se nao serve."""
@@ -153,6 +180,20 @@ def coletar(keyword, dias_janela=14, verbose=True):
                     "ts": int(dt.timestamp() * 1000),
                     "checagem": checagem}
 
+        # Republicacao: mesma materia em outro portal. So e decidido
+        # DEPOIS de baixar o corpo, porque a comparacao e de texto e nao
+        # de titulo. O titulo sozinho erra nos dois sentidos - deixa
+        # passar republicacao e barra materia nova sobre o mesmo tema.
+        def checa_republicacao(txt):
+            # Evidencia dupla: titulo (pega reescrita local) + corpo
+            # (pega quando o titulo foi muito mexido).
+            for p in ja_publicadas:
+                if monitor.e_republica(t, fonte, ja_publicadas, txt):
+                    print(f"    [dup] '{t[:40]}' = republicacao de "
+                          f"'{p['title'][:34]}' ({p['source'][:14]})")
+                    return True
+            return False
+
         # Nome no TITULO = certeza, nao precisa baixar nada.
         if monitor.cita(t, keyword):
             url = monitor.google_news_real_url(e["link"]) or e["link"]
@@ -165,6 +206,9 @@ def coletar(keyword, dias_janela=14, verbose=True):
         testados.add(chave)      # ja verificado; nao repetir em outra consulta
         txt = monitor.baixa_texto(url)
         if txt and monitor.cita(txt, keyword):
+            #Ultima chance: e republicacao de algo que ja esta no banco?
+            if checa_republicacao(txt):
+                return None
             return pronto(url, "corpo")
         return None
 
