@@ -1,19 +1,4 @@
-https://portalhortolandia.com.br/empregos/iphone-dobravel-2-234191/
-https://www.cnnbrasil.com.br/economia/money/tecnologia/iphone-18-celular-dobravel-e-ia-o-que-esperar-do-evento-da-apple/
-https://girodoboi.canalrural.com.br/pecuaria/laucidio-coelho-conheca-a-historia-do-pecuarista-que-teve-870-mil-hectares-e-250-mil-cabecas-de-gado/
-https://acritica.net/economia/maximize-summit-reune-empresarios-e-especialistas-em-campo-grande/
-https://www.cnnbrasil.com.br/economia/money/tecnologia/iphone-18-ia-e-pressao-de-trump-o-que-esperar-da-apple-apos-troca-de-ceo/
-https://tribunademinas.com.br/antena-1-jf/01-09-2026/ao-vivo-na-antena-1-juiz-de-fora-0109.html
-https://acritica.net/light/familia-coelho-campo-grande/
-https://olhardigital.com.br/2026/08/28/pro/resumo-do-od-eclipse-no-brasil-lancamento-historico-da-nasa-e-o-caso-meta/
-https://olhardigital.com.br/2026/08/27/pro/resumo-do-od-noite-de-eclipse-lunar-meta-faz-acordo-de-bilhoes-o-que-explica-a-tragedia-no-nepal/
-https://www.estadao.com.br/economia/negocios/acordo-multibilionario-da-meta-nos-eua-redesenha-o-futuro-das-redes-sociais-saiba-como/
-https://olhardigital.com.br/2026/08/26/videos/meta-o-que-muda-nas-redes-sociais-apos-acordo-firmado-pela-empresa/
-https://www.techtudo.com.br/google/amp/guia/2026/08/marca-dagua-do-claude-quem-usa-a-ia-para-revisar-textos-sera-identificado-edsoftwares.ghtml
-https://capivaranews.com/senac-tech-summit-reune-especialistas-em-ia-e-computacao-quantica-em-dois-dias-de-imersao-tecnologica
-https://www.rcn67.com.br/cotidiano/__trashed-7/
-https://timesbrasil.com.br/videos/a-bola-sentiu-o-toque-como-a-tecnologia-da-copa-de-2026-passou-a-decidir-lances-em-tempo-real/
-https://www.rcn67.com.br/economia/agencia-de-campo-grande-8020-marketing-amplia-atuacao-e-ganha-espaco-nacional/
-https://portaldocomercio.org.br/senac_destaque/senac-tech-summit-traz-computacao-quantica-e-inteligencia-artificial-para-aproximar-ms-das-profissoes-do-futuro/
-https://www.rcn67.com.br/aparecida-do-taboado/novas-siglas-ibs-e-cbs-passam-a-integrar-notas-fiscais-e-exigem-adaptacao-das-empresas/
-https://portalleodias.com/noticias/deepfake-sexual-especialista-explica-como-identificar-denunciar-e-se-proteger-de-montagens
+# Lote opcional de reclassificacao: um link por linha.
+# VAZIO de proposito: sem links aqui, o sentiment.py reclassifica
+# todas as noticias do banco. Para reclassificar so algumas, Coloque
+# os links neste arquivo (um por linha) e faca o commit.
