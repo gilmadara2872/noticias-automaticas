@@ -134,6 +134,20 @@ def fetch_ddg_snippet(url):
 # LLM_API_KEY VAZIO. As 37 noticias cairam no lexico e o workflow
 # reportou "success". Ninguem percebeu que a IA nunca rodou.
 # Agora a chave e o modelo sao testados ANTES de classificar qualquer coisa.
+# Modelos de reserva. Quando o principal esta com limite proprio
+# ("temporarily rate-limited upstream"), outro modelo responde.
+#
+# ATENCAO - o que a reserva NAO resolve: a cota DIARIA
+# ("free-models-per-day") e por conta, nao por modelo. Se ela acabar,
+# trocar de modelo nao adianta - o erro e o mesmo em todos. Para dia
+# normal isso nao é problema, porque a rotina so classifica materia
+# NOVA (sentimento is null), e sao poucas por dia.
+MODELOS_RESERVA = [
+    "google/gemma-4-31b-it:free",
+    "inclusionai/ling-3.0-flash-sante:free",
+]
+
+
 def checa_llm():
     """Retorna (ok, mensagem). Testa a chave e o modelo de verdade."""
     if not common.LLM_API_KEY:
@@ -252,18 +266,37 @@ def llm_sentiment(title, content, keyword=""):
             # pensando e devolvem content=null se max_tokens for baixo.
             # 1500 evita a resposta vazia.
             "max_tokens": 1500, "temperature": 0}
-    st = resp = None
-    for tentativa in range(1, 4):
-        st, resp = common.http(
-            "POST", common.LLM_BASE_URL + "/chat/completions",
-            {"Authorization": f"Bearer {common.LLM_API_KEY}",
-             "Content-Type": "application/json"}, body, timeout=240)
-        if st == 200:
-            break
-        print(f"    IA falhou (HTTP {st}) tentativa {tentativa}/3: {str(resp)[:150]}")
-        if tentativa < 3:
-            time.sleep(15 * tentativa)
-    if st != 200:
+    def tenta(modelo, tentativas=3):
+        corpo = dict(body, model=modelo)
+        for tentativa in range(1, tentativas + 1):
+            st, resp = common.http(
+                "POST", common.LLM_BASE_URL + "/chat/completions",
+                {"Authorization": f"Bearer {common.LLM_API_KEY}",
+                 "Content-Type": "application/json"}, corpo, timeout=240)
+            if st == 200:
+                return resp, modelo
+            # cota DIARIA e por conta: nenhum modelo resolve. Nao gasta
+            # mais tentativa com outros modelos nesse caso.
+            if st == 429 and "free-models-per-day" in str(resp):
+                print("    cota diaria da conta acabada - outro modelo "
+                      "nao resolve (o limite e da conta, nao do modelo)")
+                return None, modelo
+            print(f"    {modelo} falhou (HTTP {st}) tentativa "
+                  f"{tentativa}/{tentativas}: {str(resp)[:110]}")
+            if tentativa < tentativas:
+                time.sleep(15 * tentativa)
+        return None, modelo
+
+    resp, usado = tenta(common.LLM_MODEL)
+    if resp is None:
+        for reserva in MODELOS_RESERVA:
+            if reserva == common.LLM_MODEL:
+                continue
+            resp, usado = tenta(reserva, tentativas=2)
+            if resp is not None:
+                print(f"    reserva funcionando: {usado}")
+                break
+    if resp is None:
         return None
     try:
         txt = (resp["choices"][0]["message"].get("content") or "").strip().upper()
