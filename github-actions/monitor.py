@@ -256,6 +256,71 @@ def baixa_texto(url):
     return re.sub(r"<[^>]+>", " ", html)
 
 
+# Marcas de navegacao que aparecem antes da materia no texto limpo. O
+# navegador le o menu do site antes do texto, e o modelo ia encontrar
+# "processo" num link de "processo seletivo" e marcar NEGATIVA.
+RUIDO_NAV = (
+    "assine", "clube", "editar perfil", "meu olhar", "fichas técnicas",
+    "conteúdos exclusivos", "assine nossa newsletter", "entre no",
+    "iniciar sessão", "newsletter", "compartilhe", "prefira o",
+    "todas as notícias", "mais lidas", "últimas notícias", "edição de vídeo",
+)
+
+
+def recorta_sobre_o_nome(texto, pessoa, folga=700, maximo=6000):
+    """Devolve o pedaco do texto em que a PESSOA aparece.
+
+    Medido em 2026-10-04: o Olhar Digital mandava 2750 chars, sendo
+    1111 so de menu e navegacao antes do nome. O modelo leu 'processo'
+    e 'acusava' nessa parte e marcou NEGATIVA numa materia onde a
+    pessoa era entrevistada. Recortar em torno do nome tira o ruido.
+
+    Nao corta se o nome nao existir - nesse caso devolve o texto
+    inteiro, porque quem chama aqui ja verificou que ha nome.
+    """
+    if not texto:
+        return ""
+    # O texto do site traz "Kenneth Correa" sem acento, e o nome
+    # configurado vem com acento. Busca literal nao acha nada e o
+    # recorte vira no-op.
+    #
+    # O erro anterior: tirar os acentos DEPOIS de remover o que nao e
+    # letra faz o nome virar "kennethcorra" (o 'a' do 'rea' fica
+    # preso no acento removido) e a busca nunca acha. Aqui os dois
+    # lados vao pelo mesmo caminho: acentos viram a letra base.
+    def so_letras(s):
+        base = unicodedata.normalize("NFD", s.lower())
+        base = "".join(c for c in base if unicodedata.category(c) != "Mn")
+        return re.sub(r"[^a-z]", "", base)
+
+    nome = so_letras(pessoa)
+    letras, alvo = [], []
+    for i, c in enumerate(texto):
+        d = unicodedata.normalize("NFD", c.lower())
+        for dc in d:
+            if unicodedata.category(dc) == "Mn":
+                continue
+            if dc.isascii() and dc.isalpha():
+                letras.append(i)
+                alvo.append(dc)
+
+    achados = [m.start() for m in re.finditer(re.escape(nome), "".join(alvo))]
+    if not achados or not letras:
+        return texto[:maximo]
+
+    pos_real = [letras[a] if a < len(letras) else 0 for a in achados]
+    inicio = max(0, pos_real[0] - folga)
+    # se o inicio caiu dentro de bloco de navegacao, sobe ate a ultima
+    # quebra dupla, que costuma ser o fim do menu.
+    trecho = texto[:inicio].lower()
+    fim_menu = max((trecho.rfind(m) for m in RUIDO_NAV), default=-1)
+    if fim_menu != -1 and inicio - fim_menu < 400:
+        inicio = fim_menu
+
+    saida = texto[inicio:inicio + maximo].strip()
+    return saida if saida else texto[:maximo]
+
+
 def triagem(titulo, keyword, fonte="", link_google=""):
     """FILTRO. Devolve (aceita, url_real, checagem).
 

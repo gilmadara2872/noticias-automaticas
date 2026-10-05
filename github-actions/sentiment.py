@@ -204,6 +204,13 @@ PROMPT_REGRAS = (
     "'bandido', 'faz tudo errado') -> NEGATIVA. Aqui entra tanto "
     "quando ela e ACOUSADA quanto quando apenas APARECE PERTO de um "
     "crime ou investigacao, mesmo sem acusacao direta.\n"
+    "ATENCAO: o juzo negativo tem de ser SOBRE A PESSOA. Se a materia "
+    "acusa a EMPRESA, o CLIENTE, o GOVERNO ou o ASSUNTO, isso NAO e "
+    "NEGATIVA para a pessoa - ela e citada para ANALISAR, e isso e "
+    "POSITIVA pela regra 1. Exemplo medido em 2026-10-04: 'um processo "
+    "queacusava a empresa' com a pessoa citada como especialista em IA "
+    "para comentar o caso e POSITIVA, porque a acusacao e contra a "
+    "Meta, nao contra ela.\n"
     "  6) A pessoa e elogiada ou recebe premio -> POSITIVA.\n\n"
     "REGRA QUE RESOLVE O ERRO MAIS COMUM:\n"
     "Ser citado como especialista NAO e automaticamente positivo. Boa parte "
@@ -341,6 +348,19 @@ def main(force=False, lote=None):
         if sent and not force:
             print(f"  {str(n['title'])[:50]} -> {sent} (mantido) ({len(content)} chars)")
             continue
+
+        # O texto bruto traz o menu e a navegacao do site antes da
+        # materia. Medido em 2026-10-04 no Olhar Digital: 1111 chars de
+        # navegacao antes do nome, com "processo" e "acusava" de link,
+        # e o modelo marcou NEGATIVA numa entrevista. Recortar em torno
+        # do nome tira o ruido sem perder a materia.
+        alvo_recorte = n.get("keyword") or "Kenneth Corrêa"
+        if content:
+            recortado = monitor.recorta_sobre_o_nome(content, alvo_recorte)
+            if len(recortado) < len(content):
+                print(f"    [recorte] {len(content)} -> {len(recortado)} chars "
+                      f"(tirado o menu do site)")
+                content = recortado
 
         titulo = str(n["title"])
         # A palavra-chave do banco vem do monitor; e ela quem define quem
