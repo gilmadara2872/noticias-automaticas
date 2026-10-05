@@ -349,18 +349,21 @@ def main(force=False, lote=None):
             print(f"  {str(n['title'])[:50]} -> {sent} (mantido) ({len(content)} chars)")
             continue
 
-        # O texto bruto traz o menu e a navegacao do site antes da
-        # materia. Medido em 2026-10-04 no Olhar Digital: 1111 chars de
-        # navegacao antes do nome, com "processo" e "acusava" de link,
-        # e o modelo marcou NEGATIVA numa entrevista. Recortar em torno
-        # do nome tira o ruido sem perder a materia.
+        # O modelo le a materia INTEIRA e encontra "acusava a empresa",
+        # "processo", "violencia" - termos que NAO sao sobre a pessoa.
+        # Medido em 2026-10-04: 4 das 41 materias sairam NEGATIVA assim,
+        # sendo que nenhuma tem juzo negativo sobre a pessoa.
+        #
+        # O recorte pela janela do nome nao resolve: a frase pode estar
+        # longe. O que resolve e mandar SO as frases que falam da
+        # pessoa, com uma de contexto de cada lado.
         alvo_recorte = n.get("keyword") or "Kenneth Corrêa"
         if content:
-            recortado = monitor.recorta_sobre_o_nome(content, alvo_recorte)
-            if len(recortado) < len(content):
-                print(f"    [recorte] {len(content)} -> {len(recortado)} chars "
-                      f"(tirado o menu do site)")
-                content = recortado
+            perto = monitor.frases_sobre_a_pessoa(content, alvo_recorte)
+            if perto and len(perto) < len(content) * 0.9:
+                print(f"    [foco] {len(content)} -> {len(perto)} chars "
+                      f"(so as frases que falam da pessoa)")
+                content = perto
 
         titulo = str(n["title"])
         # A palavra-chave do banco vem do monitor; e ela quem define quem

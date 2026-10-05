@@ -321,6 +321,49 @@ def recorta_sobre_o_nome(texto, pessoa, folga=700, maximo=6000):
     return saida if saida else texto[:maximo]
 
 
+def frases_sobre_a_pessoa(texto, pessoa, contexto=1):
+    """Devolve so as frases que falam da PESSOA, com uma de cada lado.
+
+    Este e o filtro que resolve a NEGATIVA falsa. O modelo lia a
+    materia inteira e via "acusava a empresa", "processo", "violencia"
+    - termos que descrevem a EMPRESA ou o ASSUNTO, nao a pessoa.
+    Mandando so a frase em que o nome aparece, esses termos nao vao
+    junto: o modelo passa a julgar o que a pessoa realmente fez na
+    materia.
+
+    Medido em 2026-10-04: 4 das 41 materias sairam NEGATIVA sem que
+    houvesse qualquer juzo negativo sobre a pessoa.
+    """
+    if not texto:
+        return ""
+    partes = re.split(r"(?<=[.!?])\s+", texto)
+    if len(partes) < 3:
+        return texto
+
+    def so_letras(s):
+        b = unicodedata.normalize("NFD", s.lower())
+        b = "".join(c for c in b if unicodedata.category(c) != "Mn")
+        return re.sub(r"[^a-z]", "", b)
+
+    nome = so_letras(pessoa)
+    if not nome:
+        return texto
+
+    alvo = [so_letras(p) for p in partes]
+    marcadas = [i for i, p in enumerate(alvo) if nome in p]
+    if not marcadas:
+        return texto
+
+    # junta frases consecutivas e inclui as vizinhas imediatas
+    quer = set()
+    for i in marcadas:
+        for j in range(max(0, i - contexto), min(len(partes), i + contexto + 1)):
+            quer.add(j)
+
+    # o titulo entra sempre: e ele que da o contexto do assunto
+    return " ".join([partes[0]] + [partes[i] for i in sorted(quer) if i != 0])
+
+
 def triagem(titulo, keyword, fonte="", link_google=""):
     """FILTRO. Devolve (aceita, url_real, checagem).
 
