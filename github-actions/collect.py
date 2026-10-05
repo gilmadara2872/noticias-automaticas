@@ -27,6 +27,7 @@ from email.utils import parsedate_to_datetime
 from datetime import datetime, timedelta, timezone
 
 import monitor
+import filtro_pagina
 
 # import tardio: collect e importado por monitor, entao importar common no
 # topo criaria ciclo. Dentro da funcao resolve na hora do uso.
@@ -205,8 +206,19 @@ def coletar(keyword, dias_janela=14, verbose=True):
             return None
         testados.add(chave)      # ja verificado; nao repetir em outra consulta
         txt = monitor.baixa_texto(url)
-        if txt and monitor.cita(txt, keyword):
-            #Ultima chance: e republicacao de algo que ja esta no banco?
+        if txt:
+            #Rgela de materia x pagina. O filtro antigo casava a
+            # palavra solta "marketing" e procurava no texto INTEIRO
+            # da pagina, incluindo a barra lateral de "Noticias
+            # Relacionadas". Em 2026-10-04 isso deixou 9 de 41
+            # materias no banco sem serem sobre o Kenneth nem sobre a
+            # empresa dele. Ver filtro_pagina.py para a medicao.
+            ok, motivo = filtro_pagina.aceita(txt, t, keyword)
+            if not ok:
+                if verbose:
+                    print(f"    [filtro] '{t[:40]}' descartada: {motivo}")
+                return None
+            # Ultima chance: e republicacao de algo ja no banco?
             if checa_republicacao(txt):
                 return None
             return pronto(url, "corpo")

@@ -385,7 +385,12 @@ def triagem(titulo, keyword, fonte="", link_google=""):
     texto = baixa_texto(url)
     if not texto:
         return True, url, "nao_conferida"
-    return cita(texto, keyword), url, "corpo"
+    # Regua de materia x pagina: ver filtro_pagina.py. O cita() puro
+    # casava a palavra solta "marketing" e achava o nome da empresa na
+    # barra lateral, deixando passar materia de outro assunto.
+    import filtro_pagina
+    ok, _ = filtro_pagina.aceita(texto, titulo, keyword)
+    return ok, url, "corpo"
 
 # Janela de data. Antes era 7 dias, o que faz o monitor perder materia:
 # uma materia so seria coletada 7 dias depois de publicada, e o cliente
