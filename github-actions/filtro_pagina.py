@@ -74,7 +74,7 @@ def e_nome_de_empresa(keyword):
     return (keyword or "").lower().startswith("80 20")
 
 
-def aceita(texto, titulo="", keyword="Kenneth Corrêa", antes_de=0.60):
+def aceita(texto, titulo="", keyword="Kenneth Corrêa", antes_de=0.85):
     """Rgela de aceitacao da coleta.
 
     Pessoa  -> o nome completo precisa aparecer no texto.
