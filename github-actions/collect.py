@@ -137,11 +137,12 @@ def textos_publicados():
     sentidos.
     """
     st, resp = _common().sb_select({
-        "select": "title,conteudo,source", "limit": "300"})
+        "select": "title,conteudo,source,link", "limit": "300"})
     if not isinstance(resp, list) or not resp:
         return []
     return [{"title": r.get("title") or "", "conteudo": r.get("conteudo") or "",
-             "source": r.get("source") or ""} for r in resp if r.get("conteudo")]
+             "source": r.get("source") or "", "link": r.get("link") or ""}
+            for r in resp if r.get("conteudo")]
 
 
 def coletar(keyword, dias_janela=14, verbose=True):
@@ -154,6 +155,43 @@ def coletar(keyword, dias_janela=14, verbose=True):
     if verbose:
         print(f"  {len(ja_publicadas)} materia(s) com texto ja no banco "
               f"(base para detectar republicacao)")
+
+    def _link_ja_no_banco(link):
+        """True se este endereco ja foi gravado.
+
+        Sem isso, uma materia apagada do banco pela limpeza volta na
+        coleta seguinte: em 2026-10-05 a materia do riobrilhante
+        voltou do mesmo jeito que tinha sido removida.
+        """
+        alvo = (link or "").split("?")[0].rstrip("/")
+        if not alvo:
+            return False
+        for pub in ja_publicadas:
+            ja = (pub.get("link") or "").split("?")[0].rstrip("/")
+            if ja and ja == alvo:
+                return True
+        return False
+
+    def _titulo_igual_ao_do_banco(titulo):
+        """Mesmo titulo (sem acento, sem pontuacao) ja guardado.
+
+        So com fonte diferente: no mesmo veiculo, titulo igual pode ser
+        materia nova da secao de resumo.
+        """
+        def chave(s):
+            s = __import__("unicodedata").normalize("NFD", (s or "").lower())
+            s = "".join(c for c in s if __import__("unicodedata").category(c) != "Mn")
+            return __import__("re").sub(r"[^a-z0-9]+", " ", s).strip()[:60]
+
+        alvo = chave(titulo)
+        if not alvo:
+            return False
+        for pub in ja_publicadas:
+            if pub.get("source") == fonte:
+                continue
+            if chave(pub.get("title")) == alvo:
+                return True
+        return False
 
     def avaliar(e):
         """Verifica e devolve o dict pronto, ou None se nao serve."""
@@ -195,8 +233,19 @@ def coletar(keyword, dias_janela=14, verbose=True):
                     return True
             return False
 
-        # Nome no TITULO = certeza, nao precisa baixar nada.
+        # Link ja no banco = mesma materia, com certeza. Checagem mais
+        # barata que qualquer comparacao de texto.
+        if _link_ja_no_banco(e["link"]):
+            print(f"    [dup] '{t[:40]}' = link ja esta no banco")
+            return None
+
+        # Nome no TITULO = o nome esta no titulo, mas a MATERIA pode
+        # ser republicacao de outra ja guardada. Antes esta checagem
+        # nao existia aqui e a materia voltava pro banco duplicada.
         if monitor.cita(t, keyword):
+            if _titulo_igual_ao_do_banco(t):
+                print(f"    [dup] '{t[:40]}' = mesmo titulo ja no banco")
+                return None
             url = monitor.google_news_real_url(e["link"]) or e["link"]
             return pronto(url, "titulo")
 
