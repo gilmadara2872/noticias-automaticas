@@ -141,3 +141,56 @@ painel-kenneth-7f3a9c.html      # painel web com gráficos
   a português brasileiro e contexto de 128k tokens.
 - A reclassificação (`sentiment.py --force`) processa todas as notícias do banco,
   incluindo as que já tinham sentimento atribuído.
+
+---
+
+## Decisões de 2026-10-04/05
+
+Cada uma destas mudou porque **uma medição mostrou que o caminho anterior
+errava** — não por suposição.
+
+### 1. Captura em 3 camadas, não só por nome
+A busca por nome perdia a matéria do O Globo: 6 menções no corpo, zero no
+título. Entrou a camada por tema (que a achou) e por veículo.
+
+### 2. Título é pista, não aceite
+Se o nome está no título, o código retornava na hora, sem baixar o corpo e
+sem checar duplicata. Esse caminho não tinha proteção nenhuma. Hoje, mesmo
+com nome no título, passa por link e título antes de gravar.
+
+### 3. Duplicata que volta é problema de entrada
+A limpeza de 47→41→32 deixou o banco limpo, mas a **coleta seguinte
+repus a duplicata removida** (mesmo título, mesmo evento, portal
+diferente). Remover não resolve; precisa de barreira na entrada. Hoje são
+três: link, título normalizado e recontido do corpo (≥0,55 em veículo
+distinto).
+
+### 4. O corte de posição do filtro: 60% → 85%
+Calibrado nas 32 matérias do banco, cuja menção mais tardia era 58%, e o
+corte ficou logo acima. A coleta de 2026-10-05 trouxe uma matéria real a
+**62%** — o Kenneth entre 8 palestrantes confirmados. Perder matéria real
+custa mais que guardar ruído, e o ruído é barrado pela regra do nome
+completo, não pela posição.
+
+### 5. Só as frases em torno do nome vão ao modelo
+A notícia inteira produzia `NEGATIVA` porque "acusava" e "processo"
+falavam da Meta. `frases_sobre_o_nome()` + `frases_sobre_a_pessoa()`
+mandam só o que ele disse: 4262→426 chars, nome preservado em 41/41.
+
+### 6. `lote.txt`: comentário não é link
+`# comentário` no arquivo era lido como URL, o lote vinha vazio e o
+workflow retornava **success sem fazer nada**. Pior que falhar: parecia
+que tinha rodado. Agora comentário é comentário, e zero correspondência
+sai com código 1.
+
+### 7. Reserva por limitação de modelo, não de conta
+Dois erros diferentes do OpenRouter:
+- `... is temporarily rate-limited upstream` → **por modelo** → a reserva resolve
+- `Rate limit exceeded: free-models-per-day` → **por conta** → nenhuma troca resolve
+
+O `llm_sentiment()` tenta `LLM_MODEL` primeiro, sempre; só vai às reservas
+se a principal falhar. Não há trava: quando ela volta, volta sozinha.
+
+### 8. `free-models-per-day` cota do dia
+~50 chamadas. O uso normal gasta poucas (só matéria **nova**: o filtro é
+`sentimento is null`). O que esgota é reclassificação completa + testes.
