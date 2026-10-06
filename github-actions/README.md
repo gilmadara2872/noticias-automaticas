@@ -231,7 +231,27 @@ diferença; o efeito aparece com contexto. Para julgar cada mudança, extraí a
 frase real onde o nome aparece: 5 corretas (lista de palestrantes = NEUTRA,
 tag = NEUTRA, "especialista... analisa" = POSITIVA) e 1 discutível.
 
-### 11. Modelo de reserva: VAZIO é pior que ERRADO
+### 11. Estabilidade: medir 3× antes de confiar num rótulo
+Medido em 2026-10-06 nas 6 matérias que mudaram de rótulo, 3 rodadas cada:
+
+- **5 das 6 são ESTÁVEIS** — mesmo resultado nas 3 rodadas, e igual ao do
+  banco (lista de palestrantes = NEUTRA, tag = NEUTRA, "especialista...
+  analisa" = POSITIVA, "apresenta a palestra" = POSITIVA).
+- **1 é INSTÁVEL**: "Quem foi Laucídio Coelho" deu `POSITIVA, POSITIVA,
+  NEUTRA` em três rodadas idênticas — a frase é *"seu bisneto Kenneth
+  Corrêa, que pesquisou documentos e memórias da família"*. É fronteira
+  genuína: é fonte da informação, mas não é posição técnica.
+
+Lição: um rótulo que muda entre rodadas idênticas **não é classificação, é
+sorte**. Antes de afirmar que uma matéria "ficou correta", rodar 3× e ver se
+converge. E `temperature=0` **não garante** determinismo em modelos `:free`
+com raciocínio — o mesmo texto pode sair diferente.
+
+**Caso em aberto para o cliente:** a do Laucídio. Se ele considerar que citar
+o bisneto como fonte da pesquisa não constrói autoridade, a resposta é NEUTRA
+e o caso pode entrar no prompt como exemplo explícito.
+
+### 12. Modelo de reserva: VAZIO é pior que ERRADO
 Medição de 9 frases × 6 modelos. Dois devolviam `content` **vazio** em parte
 das frases (`nemotron-3-ultra-550b`, `liquid/lfm-2.5-2.6b`) — pior que errar,
 porque derruba a classificação no léxico, que é a "análise rasa" que o cliente
