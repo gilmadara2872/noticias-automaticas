@@ -3,6 +3,10 @@ monitor_out.json
 *.local.json
 .env
 
+# Listagem de secrets do repo (nomes, sem valores). Nao e segredo, mas e
+# metadado de infraestrutura que nao pertence ao repositorio publico.
+s.json
+
 # Cache de bytecode: nao deve ser versionado (so polui o diff e o repo)
 __pycache__/
 *.pyc

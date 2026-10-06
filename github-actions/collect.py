@@ -172,11 +172,16 @@ def coletar(keyword, dias_janela=14, verbose=True):
                 return True
         return False
 
-    def _titulo_igual_ao_do_banco(titulo):
+    def _titulo_igual_ao_do_banco(titulo, fonte_novo=""):
         """Mesmo titulo (sem acento, sem pontuacao) ja guardado.
 
         So com fonte diferente: no mesmo veiculo, titulo igual pode ser
         materia nova da secao de resumo.
+
+        `fonte_novo` e PARAMETRO de proposito: antes esta funcao lia a
+        variavel `fonte`, que so existe dentro de avaliar(). Escopo irmao
+        nao enxerga escopo irmao - era NameError garantido no primeiro
+        registro com titulo repetido, e derrubava o monitor inteiro.
         """
         def chave(s):
             s = __import__("unicodedata").normalize("NFD", (s or "").lower())
@@ -187,7 +192,7 @@ def coletar(keyword, dias_janela=14, verbose=True):
         if not alvo:
             return False
         for pub in ja_publicadas:
-            if pub.get("source") == fonte:
+            if fonte_novo and pub.get("source") == fonte_novo:
                 continue
             if chave(pub.get("title")) == alvo:
                 return True
@@ -243,7 +248,7 @@ def coletar(keyword, dias_janela=14, verbose=True):
         # ser republicacao de outra ja guardada. Antes esta checagem
         # nao existia aqui e a materia voltava pro banco duplicada.
         if monitor.cita(t, keyword):
-            if _titulo_igual_ao_do_banco(t):
+            if _titulo_igual_ao_do_banco(t, fonte):
                 print(f"    [dup] '{t[:40]}' = mesmo titulo ja no banco")
                 return None
             url = monitor.google_news_real_url(e["link"]) or e["link"]
@@ -266,6 +271,19 @@ def coletar(keyword, dias_janela=14, verbose=True):
             if not ok:
                 if verbose:
                     print(f"    [filtro] '{t[:40]}' descartada: {motivo}")
+                return None
+            # Mesmo titulo (normalizado) de OUTRO veiculo = mesma materia.
+            #
+            # Esta checagem so existia no caminho do TITULO. Quando o nome
+            # nao esta no titulo - caso de "Evento gratuito reune
+            # empresarios..." -, o caminho do CORPO nao a rodava e a
+            # duplicata entrava. Medido em 2026-10-06: a mesma materia
+            # entrou 2x (riobrilhante em 05/10, diariodigital em 24/09),
+            # porque e_republica exige corpo >= 800 chars no registro
+            # ANTIGO - e o corpo so e gravado pelo sentiment.py, que ainda
+            # nao tinha rodado para a materia antiga.
+            if _titulo_igual_ao_do_banco(t, fonte):
+                print(f"    [dup] '{t[:40]}' = mesmo titulo ja no banco (via corpo)")
                 return None
             # Ultima chance: e republicacao de algo ja no banco?
             if checa_republicacao(txt):

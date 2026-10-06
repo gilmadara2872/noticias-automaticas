@@ -5,6 +5,7 @@
 # O resumo cobre TODAS as palavras-chave monitoradas: as que tiveram noticia
 # aparecem detalhadas; as que nao tiveram sao listadas como "sem noticias",
 # para o cliente saber que o robo olhou e nao achou (silencio nunca e omissao).
+import os
 from datetime import datetime, timedelta, timezone
 
 import common
@@ -14,22 +15,31 @@ BRT = timezone(timedelta(hours=-3))
 # Mesma lista que o monitor coleta: fonte unica em common.py.
 KEYWORDS = common.KEYWORDS
 
-# Dia alvo do resumo:
-#   1 = ONTEM (dia anterior a execucao)  -> digest do dia que fechou
-#   0 = HOJE
-# Cliente quer "somente as noticias que sairam no dia" (estritamente esse dia).
-RESUMO_DIAS_ATRAS = 1
+# Janela do resumo: quantas horas para tras olhar a COLETA (created_at).
+#
+# POR QUE NAO POR DATA DE PUBLICACAO (era o que estava, e estava errado):
+# o monitor coleta com atraso - a janela dele e de 14 dias, entao materia
+# publicada em 23/09 foi coletada em 05/10. Preso a "publicado ontem", o
+# resumo desses dias dava 0 e o cliente recebia "nenhuma noticia" mesmo
+# havendo materia nova no banco (medido em 2026-10-06: os 4 dias anteriores
+# deram 0 noticias, com 34 materias no banco). Ancorar na COLETA faz toda
+# materia entrar em um resumo.
+#
+# 26h = um pouco mais que 24h, para absorver o atraso do cron do GitHub.
+# Limite conhecido: se o resumo rodar 2x dentro da janela (dispatch manual),
+# a materia repete - nao existe marcador de "ja reportado" no banco.
+RESUMO_HORAS = int(os.environ.get("RESUMO_HORAS", "26"))
 
 MAX = 4000
 
 
 def main():
-    alvo = datetime.now(BRT).replace(hour=0, minute=0, second=0, microsecond=0) \
-        - timedelta(days=RESUMO_DIAS_ATRAS)
-    dia = alvo.strftime("%Y-%m-%d")
+    desde = datetime.now(timezone.utc) - timedelta(hours=RESUMO_HORAS)
+    corte = desde.strftime("%Y-%m-%dT%H:%M:%S")
+    dia = datetime.now(BRT).strftime("%d/%m/%Y")
     st, resp = common.sb_select({
         "select": "keyword,title,source,link,quando,sentimento,checagem",
-        "dia": "eq." + dia,
+        "created_at": "gte." + corte,
         "sentimento": "not.is.null",
         "order": "ts.desc",
         "limit": "50",
@@ -38,7 +48,7 @@ def main():
     if common.coluna_ausente(st, resp, "checagem"):
         st, resp = common.sb_select({
             "select": "keyword,title,source,link,quando,sentimento",
-            "dia": "eq." + dia,
+            "created_at": "gte." + corte,
             "sentimento": "not.is.null",
             "order": "ts.desc",
             "limit": "50",

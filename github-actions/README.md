@@ -152,8 +152,8 @@ painel-kenneth-7f3a9c.html      # painel web com gráficos
 
 - O envio é **único por dia** (06:00). As etapas 05:00 e 05:30 processam em
   silêncio e só alimentam o banco.
-- O filtro de resumo considera "o dia" como o dia anterior à execução
-  (`RESUMO_DIAS_ATRAS = 1`), configurável em `send_summary.py`.
+- O resumo olha para trás **26 horas de COLETA** (`created_at`), não para o
+  "dia de publicação" (`RESUMO_HORAS` em `send_summary.py`). Ver decisão 13.
 - O modelo LLM `nvidia/nemotron-3-super-120b-a12b:free` é o maior gratuito
   disponível hoje e foi o melhor na medição de 2026-10-05 (9/9). O anterior,
   `qwen/qwen3.8-27b:free`, saiu do ar gratuito.
@@ -251,7 +251,50 @@ com raciocínio — o mesmo texto pode sair diferente.
 o bisneto como fonte da pesquisa não constrói autoridade, a resposta é NEUTRA
 e o caso pode entrar no prompt como exemplo explícito.
 
-### 12. Modelo de reserva: VAZIO é pior que ERRADO
+### 12. O resumo estava chegando VAZIO ao cliente (corrigido 2026-10-06)
+O cliente recebia "nenhuma notícia" todos os dias, mesmo com matéria nova no
+banco. Duas causas somadas:
+
+1. **Âncora errada.** O resumo perguntava `dia == ontem` (data de
+   *publicação*). Mas o monitor coleta com atraso — a janela dele é de 14
+   dias. Medido: matéria publicada em 23/09 foi coletada em 05/10. Preso ao
+   dia de publicação, o resumo dos 4 dias anteriores deu **0 notícias com 34
+   matérias no banco**. Agora ancora em `created_at` (coleta), janela de 26h.
+2. **O cron do GitHub não roda na hora.** O `agenda.yml` pede 08:00/08:30/
+   09:00 UTC, mas os runs saíram entre 12:56 e 18:11 UTC — **4 a 9 horas de
+   atraso**, em horários aleatórios (fila de runner da conta gratuita, não
+   falha do cron). Um resumo ancorado em "ontem" roda depois da virada do
+   dia e busca o dia errado. Ancorar na coleta elimina a dependência do
+   relógio.
+
+Lição: **nunca ancorar relatório em data de calendário quando o job que
+alimenta o banco pode rodar atrasado.** Usar a janela de tempo do próprio
+registro.
+
+### 13. Duplicata entrava pelo caminho do CORPO (corrigido 2026-10-06)
+A checagem de "mesmo título já no banco" só existia no caminho do TÍTULO
+(quando o nome está no título). Matéria sem o nome no título — "Evento
+gratuito reúne empresários..." — caía no caminho do corpo, que **não** rodava
+essa checagem, e a duplicata entrava. Medido: a mesma matéria entrou 2×
+(riobrilhante 05/10, diariodigital 24/09). O `e_republica` também não pegou
+porque exige corpo ≥ 800 chars no registro **antigo**, e o corpo só é gravado
+pelo `sentiment.py` — que ainda não tinha rodado para a matéria antiga.
+
+### 14. `NameError` latente em `_titulo_igual_ao_do_banco`
+Essa função (dentro de `coletar()`) lia a variável `fonte`, que só existe
+dentro de `avaliar()` — escopo **irmão**, não acessível. Seria `NameError` no
+primeiro registro com título repetido, derrubando o monitor inteiro. Não
+estourou antes porque a chamada só era alcançada no caminho do título, que
+exige o nome no título. Corrigido: `fonte` virou parâmetro `fonte_novo`.
+Escopo irmão não enxerga escopo irmão — passar por parâmetro, não por
+fechamento.
+
+### 15. `s.json` estava versionado
+Listagem dos secrets do repositório (nomes, sem valores) commitada junto com
+a documentação. Não é segredo, mas é metadado de infraestrutura que não
+pertence ao repo. Removido do versionamento e adicionado ao `.gitignore`.
+
+### 16. Modelo de reserva: VAZIO é pior que ERRADO
 Medição de 9 frases × 6 modelos. Dois devolviam `content` **vazio** em parte
 das frases (`nemotron-3-ultra-550b`, `liquid/lfm-2.5-2.6b`) — pior que errar,
 porque derruba a classificação no léxico, que é a "análise rasa" que o cliente

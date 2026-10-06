@@ -34,8 +34,14 @@ noticias-automaticas/
 |---|---|---|
 | 05:00 | `monitor` | Coleta em 3 camadas: nome exato, tema, veículo. Filtra matéria×página, checa duplicata, salva no Supabase (timeout 120 min) |
 | 05:30 | `sentiment` | Lê notícias sem sentimento, abre conteúdo integral, classifica POSITIVA/NEGATIVA/NEUTRA |
-| 06:00 | `send` | Lê notícias do dia alvo no Supabase, envia resumo único via Telegram |
+| 06:00 | `send` | Lê as notícias **coletadas nas últimas 26h** no Supabase, envia resumo único via Telegram |
 | (manual) | `reclassify` | **Reclassifica TODAS as notícias pela IA** (regra da participação) |
+
+> **O cron do GitHub atrasa.** Medido em 2026-10-06: o `agenda.yml` pede
+> 08:00/08:30/09:00 UTC, mas os runs saíram entre 12:56 e 18:11 UTC — de 4 a 9
+> horas depois, em horários aleatórios (fila de runner da conta gratuita).
+> Por isso nenhum relatório pode ser ancorado em "data de calendário": o
+> resumo usa a **janela de coleta** (`created_at`), não "o dia de ontem".
 
 ## Variáveis de ambiente (GitHub Secrets)
 
