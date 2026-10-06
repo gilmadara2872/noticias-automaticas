@@ -40,10 +40,35 @@ TESTE 3 — Prompt ANTIGO (f63c7ba) vs NOVO, nas 3 frases do Kenneth
 Todas as 12 combinacoes: antigo == novo. As 3 frases sao claras o
 bastante e nao sao o que diferencia os prompts.
 
-CONCLUSÃO HONESTA: o ajuste do prompt NAO mudou o resultado nessas 3
-frases. Ele removeu a tensao interna ("ser citado nao e positivo" vs
-"citado como fonte e POSITIVA") e deixou a fronteira POSITIVA x NEUTRA
-explicita, mas a diferenca de resultado nao foi medida nessas frases.
+================================================================
+TESTE 5 — APLICADO NAS 34 MATERIAS REAIS (chave nova, --force)
+================================================================
+Resultado: 34/34 classificadas por IA, 0 pelo lexico. 6 materias
+mudaram de rotulo (o total ficou igual: 24 POSITIVA / 10 NEUTRA).
+
+Julgamento pela regra do Kenneth, com a frase REAL de cada materia:
+
+  POSITIVA -> NEUTRA (3x) - todas corretas:
+    "Evento gratuito reune empresarios..."   -> "Entre os palestrantes
+      confirmados estao ... Kenneth Correa"      = NOME EM LISTA
+    "Maximize Summit deve reunir 2 mil..."   -> idem, lista de palestrantes
+    "Laucidio Coelho: conheca a historia..." -> "Assuntos Relacionados:
+      ... Kenneth Correa"                        = TAG
+
+  NEUTRA -> POSITIVA (3x) - 2 corretas, 1 discutivel:
+    "O real motivo... desacelerar a IA"  -> "Kenneth Correa, especialista
+      em tecnologias emergentes, ANALISA."       = deu posicao tecnica
+    "Senac Tech Summit..."               -> "O especialista Kenneth Correa
+      APRESENTA a palestra 'Muito Alem do Copiloto'" = autoridade
+    "Quem foi Laucidio Coelho" (bisneto) -> "Segundo relato de seu bisneto
+      Kenneth Correa, que pesquisou documentos..." = BORDERLINE: e fonte
+      da informacao, mas nao da posicao tecnica. Pode ser NEUTRA.
+
+PONTO IMPORTANTE: a materia do Laucidio deu NEUTRA no run anterior (prompt
+antigo) e POSITIVA agora (prompt novo). Ou seja, o ajuste do prompt MUDOU
+o resultado numa materia REAL, mesmo tendo dado igual nas 3 frases de teste
+(TESTE 3). O efeito do ajuste existe; ele nao aparece em frases isoladas
+e claras, aparece em materia completa com contexto.
 
 ================================================================
 TESTE 4 — Estabilidade do dots-studio (frase 7, que veio vazia)
