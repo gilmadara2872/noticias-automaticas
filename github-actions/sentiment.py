@@ -158,6 +158,12 @@ MODELOS_RESERVA = [
     "inclusionai/ling-3.0-flash-sante:free",
 ]
 
+# Permite sobrescrever a lista acima pelo secret LLM_MODEL_RESERVA
+# (modelos separados por ";"). Documentado no README como configuravel.
+_reserva_env = [m.strip() for m in os.environ.get("LLM_MODEL_RESERVA", "").split(";") if m.strip()]
+if _reserva_env:
+    MODELOS_RESERVA = _reserva_env
+
 
 def checa_llm():
     """Retorna (ok, mensagem). Testa a chave e o modelo de verdade."""

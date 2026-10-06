@@ -24,7 +24,7 @@ indicadores ao longo do tempo.
 - **Supabase** (Postgres gratuito) como banco de dados persistente
 - **Telegram Bot API** para envio do resumo
 - **GitHub Actions** como agendador (cron) e runtime — roda na nuvem, 24/7
-- **LLM**: `qwen/qwen3.8-27b:free` via OpenRouter para análise de sentimento
+- **LLM**: `nvidia/nemotron-3-super-120b-a12b:free` via OpenRouter para análise de sentimento
 
 ## Arquitetura
 
@@ -39,17 +39,34 @@ GitHub Actions (cron 05:00/05:30/06:00 BRT)
 ## Análise de sentimento
 
 ### Modelo LLM (principal)
-Usa `qwen/qwen3.8-27b:free` via OpenRouter (tier gratuito, custo zero) para
-ler a notícia inteira e classificar **pelo papel que a pessoa exerce na
-matéria**, não pelo tema dela:
+Usa `nvidia/nemotron-3-super-120b-a12b:free` via OpenRouter (tier gratuito,
+custo zero) para ler as frases em torno do nome e classificar **pelo papel que
+a pessoa exerce na matéria**, não pelo tema dela.
+
+O princípio central, nas palavras do cliente (refinado em 2026-10-05):
+
+- **NEUTRA** — citado, mas não fez nada errado (não seria NEGATIVA) e não
+  construiu autoridade (não seria POSITIVA). *Ser citado, sozinho, não é positivo.*
+- **POSITIVA** — construiu autoridade: deu posição técnica, explicou,
+  analisou como especialista. Vale **mesmo** em assunto alheio — opinou sobre
+  tecnologia numa matéria de futebol, sem se posicionar sobre o futebol.
+- **NEGATIVA** — ficou relacionado a tema perigoso (crime, investigação,
+  processo), **mesmo sem acusação direta**. *"O que ele estava fazendo perto
+  disso?"* Deixar o leitor na dúvida já basta.
 
 | Situação | Resultado |
 |---|---|
-| Palestrante, especialista citado como fonte, anfitrião, organizador, elogiado | **POSITIVA** |
-| Acusado, negatively citado, vítima de violência, contexto de crime | **NEGATIVA** |
-| Apenas citado de passagem (nota de rodapé, lista) ou o assunto não é sobre ela | **NEUTRA** |
+| Deu posição técnica (explica, analisa, comenta), elogiado | **POSITIVA** |
+| Acusado, ou relacionado a crime/investigação, mesmo sem acusação | **NEGATIVA** |
+| Só citado (lista, tag, passagem), vítima de violência | **NEUTRA** |
 
 Vale para qualquer pessoa monitorada — não há caso especial por nome.
+
+**Modelos de reserva** (medidos 2026-10-05, 9 frases rotuladas):
+`cohere/north-mini-code` 9/9, `dots-studio/dots-3-note-preview` 8/9,
+`inclusionai/ling-3.0-flash-sante` 7/9 (falhas = HTTP 429 do provedor, não
+erro de classificação). O principal fez 9/9. Configuráveis pelo secret
+`LLM_MODEL_RESERVA` (separados por `;`).
 
 ### Léxico PT-BR (reserva)
 200+ palavras com regras de negação. Só entra **se a IA falhar**, e nesse
@@ -99,7 +116,7 @@ O filtro de corpo continua sendo o portão final nas duas camadas.
    - `SUPABASE_URL` — URL do projeto Supabase
    - `SUPABASE_KEY` — chave `service_role` (grava no banco)
    - `LLM_API_KEY` — chave do OpenRouter (obrigatório para LLM)
-   - `LLM_MODEL` — modelo LLM (padrão: ``qwen/qwen3.8-27b:free``)
+   - `LLM_MODEL` — modelo LLM (padrão: `nvidia/nemotron-3-super-120b-a12b:free`)
    - `TG_TOKEN` — token do Bot do Telegram
    - `TG_CHAT_ID` — chat de destino do resumo
    - `KEYWORDS` — palavras-chave do cliente
@@ -137,8 +154,9 @@ painel-kenneth-7f3a9c.html      # painel web com gráficos
   silêncio e só alimentam o banco.
 - O filtro de resumo considera "o dia" como o dia anterior à execução
   (`RESUMO_DIAS_ATRAS = 1`), configurável em `send_summary.py`.
-- O modelo LLM `qwen/qwen3.8-27b:free` foi escolhido por ter melhor suporte
-  a português brasileiro e contexto de 128k tokens.
+- O modelo LLM `nvidia/nemotron-3-super-120b-a12b:free` é o maior gratuito
+  disponível hoje e foi o melhor na medição de 2026-10-05 (9/9). O anterior,
+  `qwen/qwen3.8-27b:free`, saiu do ar gratuito.
 - A reclassificação (`sentiment.py --force`) processa todas as notícias do banco,
   incluindo as que já tinham sentimento atribuído.
 
@@ -194,3 +212,30 @@ se a principal falhar. Não há trava: quando ela volta, volta sozinha.
 ### 8. `free-models-per-day` cota do dia
 ~50 chamadas. O uso normal gasta poucas (só matéria **nova**: o filtro é
 `sentimento is null`). O que esgota é reclassificação completa + testes.
+
+### 9. A regra de sentimento é do papel, e ela foi refinada pelo cliente
+O prompt tinha uma **contradição**: uma seção dizia "ser citado não é
+positivo" e outra dizia que ser citado como fonte é POSITIVA. Ao receber os
+detalhes do Kenneth em 2026-10-05, o prompt foi **reescrito inteiro** — não
+empilhei uma seção nova sobre a antiga. Princípio dele: NEUTRA é citado sem
+autoridade e sem nada errado; POSITIVA é quando constrói autoridade (posição
+técnica, mesmo em assunto alheio); NEGATIVA é ficar perto de tema perigoso,
+mesmo sem acusação direta.
+
+### 10. Medir efeito de prompt exige matéria real, não frase isolada
+Testei o prompt antigo vs novo nas 3 frases do Kenneth: **igual em 12/12**.
+Parecia que o ajuste não fazia nada. Mas rodando `--force` nas 34 matérias
+reais, **6 mudaram de rótulo** — e a do Laucídio Coelho saiu de NEUTRA para
+POSITIVA. Frases curtas e claras passam em qualquer versão e escondem a
+diferença; o efeito aparece com contexto. Para julgar cada mudança, extraí a
+frase real onde o nome aparece: 5 corretas (lista de palestrantes = NEUTRA,
+tag = NEUTRA, "especialista... analisa" = POSITIVA) e 1 discutível.
+
+### 11. Modelo de reserva: VAZIO é pior que ERRADO
+Medição de 9 frases × 6 modelos. Dois devolviam `content` **vazio** em parte
+das frases (`nemotron-3-ultra-550b`, `liquid/lfm-2.5-2.6b`) — pior que errar,
+porque derruba a classificação no léxico, que é a "análise rasa" que o cliente
+reclamou. Removidos. Ficaram os que sempre respondem: `cohere` 9/9,
+`dots-studio` 8/9, `ling-3.0-flash` 7/9 (as falhas dela foram HTTP 429 do
+provedor). Falha transitória não é defeito: o vazio do dots-studio não se
+repetiu na re-tentativa.

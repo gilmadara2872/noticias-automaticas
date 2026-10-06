@@ -5,7 +5,7 @@ Sistema de monitoramento automatizado de notícias via Google News, com análise
 ## Stack
 - **Coleta:** Python 3.12 + GitHub Actions (cron)
 - **Banco:** Supabase (PostgreSQL)
-- **Análise:** LLM via OpenRouter (padrão `qwen/qwen3.8-27b:free`, custo zero) com léxico PT-BR de 200+ palavras apenas como reserva
+- **Análise:** LLM via OpenRouter (padrão `nvidia/nemotron-3-super-120b-a12b:free`, custo zero) com léxico PT-BR de 200+ palavras apenas como reserva
 - **Notificação:** Telegram Bot
 - **Painel:** HTML/JS com Chart.js (estático, lê do Supabase)
 
@@ -45,8 +45,8 @@ noticias-automaticas/
 | `SUPABASE_KEY` | Chave `service_role` do Supabase (grava no banco) |
 | `KEYWORDS` | Palavras-chave monitoradas (separadas por `;`) |
 | `LLM_API_KEY` | Chave do OpenRouter. **Obrigatória** — sem ela o léxico assume e o Telegram avisa |
-| `LLM_MODEL` | Modelo LLM (padrão: `qwen/qwen3.8-27b:free`) |
-| `LLM_MODEL_RESERVA` | Modelos `:free` de reserva, separados por `;`. Tentados **na ordem**, só quando o principal falha. O principal é sempre tentado primeiro — quando volta, volta sozinha, sem configuração |
+| `LLM_MODEL` | Modelo LLM (padrão: `nvidia/nemotron-3-super-120b-a12b:free`) |
+| `LLM_MODEL_RESERVA` | Modelos `:free` de reserva, separados por `;`. Tentados **na ordem**, só quando o principal falha. O principal é sempre tentado primeiro — quando volta, volta sozinha, sem configuração. Se não definido, o código usa a lista interna `MODELOS_RESERVA` do `sentiment.py` |
 | `TG_TOKEN` | Token do bot Telegram |
 | `TG_CHAT_ID` | ID do chat Telegram |
 
@@ -99,11 +99,39 @@ ruídos barrados, o caso de 62% aceito.
 
 ## Análise de sentimento
 
-O sistema usa duas abordagens:
-
 ### 0. O que se avalia é a PESSOA, não o assunto
 Definido pelo Kenneth: *sentimento é a avaliação da participação dele,
 não do tema da matéria.* Um acidente climático é negativo; ele não é.
+
+O princípio central, nas palavras dele (refinado em 2026-10-05):
+
+- **NEUTRA** — o nome foi citado, mas a citação **não** é sobre algo errado
+  que ele fez (não seria NEGATIVA) e **também não** constrói a autoridade
+  dele (não seria POSITIVA). Não mexe na reputação. *Ser citado, sozinho,
+  não é positivo.*
+- **POSITIVA** — a citação **constrói a autoridade** dele: dá uma posição
+  técnica, explica, analisa ou comenta como especialista. Vale **mesmo** que
+  o assunto não tenha relação com ele ou seja negativo. Exemplo dele: opinou
+  sobre tecnologia numa matéria de futebol, sem se posicionar sobre o
+  futebol — entrou como autoridade em tecnologia.
+- **NEGATIVA** — ficou **relacionado a tema perigoso** (crime, investigação,
+  denúncia, processo, escândalo), **mesmo sem acusação direta**. A pergunta
+  dele é: *"o que ele estava fazendo perto disso?"*. Deixar o leitor na
+  dúvida sobre o envolvimento já basta.
+
+A fronteira POSITIVA × NEUTRA é uma só: **agregou posição técnica, ou o nome
+só aparece citado sem opinião nenhuma?**
+
+Exemplos que o Kenneth definiu (validados na IA real):
+
+| Situação | Resultado |
+|---|---|
+| Opinião técnica como especialista, mesmo em assunto alheio/negativo | **POSITIVA** |
+| Nome em lista de palestrantes, "Assuntos Relacionados", tag | **NEUTRA** |
+| Vítima de violência (não é culpa nem juízo sobre ele) | **NEUTRA** |
+| Citado perto de crime/investigação, sem acusação direta | **NEGATIVA** |
+| Acusação, ataque, exposição reputacional **contra ele** | **NEGATIVA** |
+| Acusação contra a empresa, processo contra terceiros | **POSITIVA** — ele foi citado para analisar |
 
 **O modelo só recebe as frases em torno do nome.** A notícia inteira
 ia nele e o modelo via "acusava", "processo" referidos a outra empresa
@@ -111,29 +139,21 @@ e marcava `NEGATIVA`. `frases_sobre_a_pessoa()` corta isso: 4262 chars
 viram 426, o nome sobrevive em 41/41, e o termo fora de contexto
 desaparece.
 
-Exemplos que o Kenneth definiu (validados 6/6 na IA real):
-
-| Situação | Resultado |
-|---|---|
-| Opinião boa como especialista, mesmo em assunto negativo | **POSITIVA** |
-| Vítima de violência (não é culpa nem juízo sobre ele) | **NEUTRA** |
-| Comentário que não agrega, nome em lista | **NEUTRA** |
-| Citado perto de crime/investigação, sem acusação direta | **NEGATIVA** |
-| Acusação, ataque, exposição reputacional **contra ele** | **NEGATIVA** |
-| Acusação contra a empresa, processo contra terceiros | **NEGATIVA** de outro, não dele |
-
 ### 1. LLM (OpenRouter) — caminho principal
-O modelo classifica **pelo papel que a pessoa exerce na matéria**, não pelo tema dela:
+O modelo classifica **pelo papel que a pessoa exerce na matéria**, não pelo tema dela.
+A regra completa está na seção 0 acima — o resumo é:
 
 | Situação na notícia | Resultado |
 |---|---|
-| Palestrante, especialista citado como fonte, anfitrião, organizador, elogiado | **POSITIVA** |
-| Acusado, negativamente citado, vitima de violencia, contexto de crime | **NEGATIVA** |
-| Apenas citado de passagem (nota de rodapé, lista) ou assunto não é sobre a pessoa | **NEUTRA** |
+| Deu posição técnica (explica, analisa, comenta como especialista), elogiado | **POSITIVA** |
+| Acusado, ou relacionado a crime/investigação/processo, mesmo sem acusação | **NEGATIVA** |
+| Só citado (lista, tag, menção de passagem), vítima de violência | **NEUTRA** |
 
 Vale para qualquer pessoa monitorada — não há caso especial por nome.
 
 O tier gratuito do OpenRouter dá 50 requisições/dia por conta (custo zero). O sistema usa ~2 para checagem de saúde + 1 por notícia.
+
+**Modelos de reserva** (medidos em 2026-10-05, 9 frases rotuladas): `cohere/north-mini-code` (9/9), `dots-studio/dots-3-note-preview` (8/9), `inclusionai/ling-3.0-flash-sante` (7/9 — as falhas foram HTTP 429 do provedor, não erro de classificação). O principal `nvidia/nemotron-3-super-120b-a12b` fez 9/9. A reserva só entra se o principal falhar por limite **do modelo**; cota **da conta** (`free-models-per-day`) nenhuma troca resolve.
 
 ### 2. Léxico PT-BR — apenas reserva
 Com 200+ palavras e regras de negação. Só entra **se a IA falhar**, e nesse caso o sistema **avisa no Telegram** dizendo quais notícias saíram do léxico. Nunca classifica em silêncio.
@@ -163,7 +183,7 @@ cd github-actions
 export SUPABASE_URL="https://uirvzlxhuyaentizyden.supabase.co"
 export SUPABASE_KEY="<service_role_key>"
 export LLM_API_KEY="<chave_openrouter>"
-export LLM_MODEL="qwen/qwen3.8-27b:free"
+export LLM_MODEL="nvidia/nemotron-3-super-120b-a12b:free"
 python sentiment.py --force
 ```
 
@@ -192,7 +212,7 @@ export SUPABASE_URL="..."
 export SUPABASE_KEY="..."
 export KEYWORDS="Palavra1;Palavra2;Palavra3"
 export LLM_API_KEY="..."
-export LLM_MODEL="qwen/qwen3.8-27b:free"
+export LLM_MODEL="nvidia/nemotron-3-super-120b-a12b:free"
 
 # Executar manualmente
 python monitor.py
@@ -232,12 +252,15 @@ Registrados para ninguém descobrir tarde:
   chamadas por dia (só matéria nova); reclassificação completa, essa.
 - **O fallback léxico nunca é silencioso.** Se a IA cair, o Telegram avisa
   e a matéria fica marcada como pendente.
-- **Filtro de frase não confirmado pela IA em produção.** Validado por
-  número (4262→426 chars, nome preservado em 41/41), mas a cota acabou
-  antes da primeira classificação real. Se não funcionar bem, o sintoma é
+- **Filtro de frase confirmado em produção (2026-10-05).** Validado por
+  número (4262→426 chars, nome preservado em 41/41) e depois na IA real:
+  34/34 matérias classificadas pela IA, 0 no léxico. Se falhar, o sintoma é
   classificação com termo fora de contexto — visível e corrigível.
 - **O filtro barra o que ele conhece.** Pode existir forma de o nome
   aparecer que ninguém viu ainda. Quem sustenta a proteção é a exigência de
   nome completo, não a posição no texto.
+- **Reserva não resolve cota de conta.** `free-models-per-day` estoura junto
+  para todos os `:free`. Para a rotina normal (só matéria nova) não é
+  problema; reclassificação completa consome ~34 das 50.
 - **Carga dos segredos:** todos foram expostos em conversa. Rotacionei-os:
   `LLM_API_KEY`, `SUPABASE_KEY`, `TG_TOKEN`, token do GitHub.
