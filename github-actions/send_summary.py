@@ -6,8 +6,9 @@
 # aparecem detalhadas; as que nao tiveram sao listadas como "sem noticias",
 # para o cliente saber que o robo olhou e nao achou (silencio nunca e omissao).
 import os
+import re
+import unicodedata
 from datetime import datetime, timedelta, timezone
-
 import common
 
 BRT = timezone(timedelta(hours=-3))
@@ -31,6 +32,21 @@ KEYWORDS = common.KEYWORDS
 RESUMO_HORAS = int(os.environ.get("RESUMO_HORAS", "26"))
 
 MAX = 4000
+
+
+def _norm_kw(s):
+    """Normaliza keyword para agrupamento: sem acento, sem caixa.
+
+    O Google retorna o título com a grafia que o veículo usou — 'Kenneth
+    Correa' (sem acento) quando o site não acentua. O monitor grava essa
+    grafia no campo `keyword`, e o resumo agrupava por ela: criava DOIS
+    grupos para a mesma pessoa ('Kenneth Corrêa - 28' e 'Kenneth Correa - 4').
+    Agrupar pela forma normalizada junta; o rótulo do grupo usa a grafia
+    canônica (a do secret).
+    """
+    s = unicodedata.normalize("NFD", (s or "").lower())
+    s = "".join(c for c in s if unicodedata.category(c) != "Mn")
+    return re.sub(r"\s+", " ", s).strip()
 
 
 def main():
@@ -60,10 +76,20 @@ def main():
                        "O monitoramento precisa de atencao.")
         return
 
-    # agrupa por palavra-chave, preservando a ordem monitorada
+    # agrupa por palavra-chave NORMALIZADA (sem acento/caixa), preservando a
+    # ordem monitorada. O rotulo do grupo usa a grafia canonica do secret.
     por_kw = {k: [] for k in KEYWORDS}
     for n in resp:
-        por_kw.setdefault(n.get("keyword", "?"), []).append(n)
+        kw_bruto = n.get("keyword", "?")
+        # encontra a keyword canonica que corresponde (normalizada)
+        kw_canon = None
+        for k in KEYWORDS:
+            if _norm_kw(k) == _norm_kw(kw_bruto):
+                kw_canon = k
+                break
+        if kw_canon is None:
+            kw_canon = kw_bruto
+        por_kw.setdefault(kw_canon, []).append(n)
 
     com, sem = [], []
     n_total = 0
