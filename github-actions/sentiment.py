@@ -144,14 +144,18 @@ def fetch_ddg_snippet(url):
 # NOVA (sentimento is null), e sao poucas por dia.
 #
 # Lista ajustada em 2026-10-05 pela medicao de 9 frases (compara_modelos.py).
-# Foram REMOVIDOS os que devolveram resposta VAZIA (inutilizavel como reserva):
-#   nvidia/nemotron-3-ultra-550b-a55b:free  -> vazio em 2 de 9 frases
-#   liquid/lfm-2.5-2.6b:free                -> vazio em 1 de 9 + errou perto-de-crime
-# Mantidos os que responderam sempre e concordaram com o principal:
+# Ordem = confiabilidade medida, do melhor para o pior:
+#   cohere/north-mini-code     -> 9/9 (responde "NEUTRO"; mapeado p/ NEUTRA)
+#   dots-studio/dots-3-note    -> 8/9 (1 vazio, que nao se repetiu na re-tentativa)
+#   inclusionai/ling-3.0-flash -> 7/9 (as 2 falhas foram HTTP 429 do provedor,
+#                                      NAO resposta errada)
+# Removidos por devolverem resposta VAZIA (pior que errar: derruba no lexico):
+#   nvidia/nemotron-3-ultra-550b-a55b:free
+#   liquid/lfm-2.5-2.6b:free
 MODELOS_RESERVA = [
-    "dots-studio/dots-3-note-preview:free",   # 7/7 na medicao
-    "inclusionai/ling-3.0-flash-sante:free",  # 6/7 (o unico erro foi rate-limit, nao resposta errada)
-    "cohere/north-mini-code:free",            # responde "NEUTRO" (mapeado p/ NEUTRA no llm_sentiment)
+    "cohere/north-mini-code:free",
+    "dots-studio/dots-3-note-preview:free",
+    "inclusionai/ling-3.0-flash-sante:free",
 ]
 
 

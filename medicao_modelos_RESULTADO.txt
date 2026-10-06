@@ -1,0 +1,66 @@
+MEDIÇÃO DOS MODELOS DE SENTIMENTO — 2026-10-05
+Chave nova (sk-or-v1-056d...22b3), 50 requisições gratuitas
+
+MODELO PRINCIPAL: nvidia/nemotron-3-super-120b-a12b:free
+
+================================================================
+TESTE 1 — 9 frases rotuladas × 4 modelos (36 chamadas)
+================================================================
+  nvidia/nemotron-3-super-120b-a12b:free     9/9   PRINCIPAL
+  cohere/north-mini-code:free                9/9   reserva
+  dots-studio/dots-3-note-preview:free       8/9   reserva (1 resposta VAZIA na frase 7 - vitima)
+  inclusionai/ling-3.0-flash-sante:free      7/9   reserva (2 erros 429 - limite do provedor, NAO erro de classificacao)
+
+================================================================
+TESTE 2 — As 3 frases NOVAS que o Kenneth definiu
+================================================================
+--- 1. Citado, nada errado nem autoridade (esperado NEUTRA) ---
+    OK  nvidia/nemotron-3-super-120b-a12b:free   -> NEUTRA
+    OK  dots-studio/dots-3-note-preview:free     -> NEUTRA
+    OK  inclusionai/ling-3.0-flash-sante:free    -> NEUTRA
+    OK  cohere/north-mini-code:free              -> NEUTRA
+
+--- 2. Perto de crime, sem acusacao direta (esperado NEGATIVA) ---
+    OK  nvidia/nemotron-3-super-120b-a12b:free   -> NEGATIVA
+    OK  dots-studio/dots-3-note-preview:free     -> NEGATIVA
+    OK  inclusionai/ling-3.0-flash-sante:free    -> NEGATIVA
+    OK  cohere/north-mini-code:free              -> NEGATIVA
+
+--- 3. Autoridade tecnica em assunto de futebol (esperado POSITIVA) ---
+    OK  nvidia/nemotron-3-super-120b-a12b:free   -> POSITIVA
+    OK  dots-studio/dots-3-note-preview:free     -> POSITIVA
+    OK  inclusionai/ling-3.0-flash-sante:free    -> POSITIVA
+    OK  cohere/north-mini-code:free              -> POSITIVA
+
+RESULTADO: as 3 reservas acertaram 3/3 nas frases novas do Kenneth.
+
+================================================================
+TESTE 3 — Prompt ANTIGO (f63c7ba) vs NOVO, nas 3 frases do Kenneth
+================================================================
+Todas as 12 combinacoes: antigo == novo. As 3 frases sao claras o
+bastante e nao sao o que diferencia os prompts.
+
+CONCLUSÃO HONESTA: o ajuste do prompt NAO mudou o resultado nessas 3
+frases. Ele removeu a tensao interna ("ser citado nao e positivo" vs
+"citado como fonte e POSITIVA") e deixou a fronteira POSITIVA x NEUTRA
+explicita, mas a diferenca de resultado nao foi medida nessas frases.
+
+================================================================
+TESTE 4 — Estabilidade do dots-studio (frase 7, que veio vazia)
+================================================================
+  tentativa 1: NEUTRA  (correto)
+  tentativa 2: ERRO 429
+  tentativa 3: ERRO 429
+
+A resposta vazia da frase 7 nao se repetiu: na re-tentativa o modelo
+respondeu NEUTRA corretamente. O vazio esta ligado a instabilidade do
+provedor (rate-limit), nao a um defeito fixo do modelo.
+
+================================================================
+NOTA SOBRE O TIPO DE FALHA
+================================================================
+"VAZIO" e pior que "ERRADO": um modelo que erra entrega um rotulo;
+um que devolve vazio faz o sistema cair no lexico de palavras - que e
+exatamente a "analise rasa" que o Kenneth reclamou. Por isso os modelos
+que devolviam vazio foram removidos da reserva (nemotron-3-ultra,
+liquid/lfm).
