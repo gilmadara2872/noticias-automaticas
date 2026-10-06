@@ -142,12 +142,16 @@ def fetch_ddg_snippet(url):
 # trocar de modelo nao adianta - o erro e o mesmo em todos. Para dia
 # normal isso nao é problema, porque a rotina so classifica materia
 # NOVA (sentimento is null), e sao poucas por dia.
+#
+# Lista ajustada em 2026-10-05 pela medicao de 9 frases (compara_modelos.py).
+# Foram REMOVIDOS os que devolveram resposta VAZIA (inutilizavel como reserva):
+#   nvidia/nemotron-3-ultra-550b-a55b:free  -> vazio em 2 de 9 frases
+#   liquid/lfm-2.5-2.6b:free                -> vazio em 1 de 9 + errou perto-de-crime
+# Mantidos os que responderam sempre e concordaram com o principal:
 MODELOS_RESERVA = [
-    "nvidia/nemotron-3-ultra-550b-a55b:free",
-    "dots-studio/dots-3-note-preview:free",
-    "liquid/lfm-2.5-2.6b:free",
-    "cohere/north-mini-code:free",
-    "inclusionai/ling-3.0-flash-sante:free",
+    "dots-studio/dots-3-note-preview:free",   # 7/7 na medicao
+    "inclusionai/ling-3.0-flash-sante:free",  # 6/7 (o unico erro foi rate-limit, nao resposta errada)
+    "cohere/north-mini-code:free",            # responde "NEUTRO" (mapeado p/ NEUTRA no llm_sentiment)
 ]
 
 
@@ -193,16 +197,38 @@ def lexicon_sentiment(title, content):
     return "NEUTRA"
 
 
-# A REGRA QUE VOCÊ PEDIU: o que importa e o PAPEL que o Kenneth DESEMPENHA
-# na noticia, e nao o tema dela. Noticia pesada (deepfake, crime, IA) em que
-# ele aparece como especialista/palestrante = POSITIVA; so citado de
-# passagem = NEUTRA; acusado ou criticado = NEGATIVA.
+# A REGRA: o que importa e o PAPEL que a pessoa DESEMPENHA na noticia, e
+# nao o tema dela. Refinada em 2026-10-05 com os 3 casos que o Kenneth
+# explicou (citado sem autoridade = NEUTRA; perto de crime = NEGATIVA;
+# opiniao tecnica = POSITIVA mesmo em assunto alheio).
 PROMPT_REGRAS = (
     "Voce avalia a REPUTACAO de uma pessoa especifica em uma noticia. "
     "O que importa e o PAPEL que essa pessoa DESEMPENHA na noticia, e NAO "
     "o tema dela. Um acidente climatico e negativo, mas se a pessoa "
     "explicou o acidente como especialista, isso e POSITIVA para ela.\n\n"
-    "Procure a FRASE em que o nome aparece e leia o que essa frase faz:\n"
+    "PRINCIPIO CENTRAL - nas palavras do proprio cliente, Kenneth Correa:\n"
+    "  NEUTRA = o nome foi citado, mas a citacao NAO e sobre algo errado "
+    "que ele fez (nao seria NEGATIVA) e TAMBEM NAO constroi a autoridade "
+    "dele (nao seria POSITIVA). Nao mexe na reputacao dele. Ser citado, "
+    "sozinho, NAO e positivo.\n"
+    "  POSITIVA = a citacao CONSTROI a autoridade dele: ele da uma posicao "
+    "tecnica, explica, analisa ou comenta como especialista. Vale MESMO "
+    "que o assunto da materia nao tenha relacao com ele ou seja negativo. "
+    "Ex. do cliente: ele opinou sobre tecnologia num assunto de futebol, "
+    "SEM se posicionar sobre o futebol - entrou como autoridade em "
+    "tecnologia, entao e POSITIVA.\n"
+    "  NEGATIVA = ele fica RELACIONADO a um tema perigoso (crime, "
+    "investigacao, denuncia, processo, escandalo), MESMO sem acusacao "
+    "direta. A pergunta do cliente e: 'o que ele estava fazendo perto "
+    "disso?'. Deixar o leitor na duvida sobre o envolvimento dele ja e "
+    "NEGATIVA.\n\n"
+    "A diferenca entre POSITIVA e NEUTRA e uma so: ele AGREGOU uma "
+    "posicao tecnica, ou o nome so aparece citado sem opiniao nenhuma?\n"
+    "  - 'Para Kenneth Correa, especialista, a IA mudou o jogo' -> "
+    "POSITIVA (deu posicao)\n"
+    "  - 'Kenneth Correa foi citado na materia' / 'Kenneth Correa consta "
+    "entre os nomes' -> NEUTRA (so citado, sem opiniao)\n\n"
+    "Casos, na ordem:\n"
     "  1) A pessoa da uma OPINIAO como especialista (explica, avalia, "
     "analisa, comenta, recomenda, e citada como fonte) -> POSITIVA. "
     "Vale mesmo que o assunto da materia seja negativo ou sem relacao "
@@ -220,23 +246,21 @@ PROMPT_REGRAS = (
     "problema (crime, denuncia, processo, investigacao, escandalo, "
     "'bandido', 'faz tudo errado') -> NEGATIVA. Aqui entra tanto "
     "quando ela e ACOUSADA quanto quando apenas APARECE PERTO de um "
-    "crime ou investigacao, mesmo sem acusacao direta.\n"
-    "ATENCAO: o juzo negativo tem de ser SOBRE A PESSOA. Se a materia "
+    "crime ou investigacao, mesmo sem acusacao direta. A simples "
+    "duvida sobre o envolvimento dele JA basta para NEGATIVA.\n"
+    "ATENCAO: o juizo negativo tem de ser SOBRE A PESSOA. Se a materia "
     "acusa a EMPRESA, o CLIENTE, o GOVERNO ou o ASSUNTO, isso NAO e "
     "NEGATIVA para a pessoa - ela e citada para ANALISAR, e isso e "
     "POSITIVA pela regra 1. Exemplo medido em 2026-10-04: 'um processo "
-    "queacusava a empresa' com a pessoa citada como especialista em IA "
+    "que acusava a empresa' com a pessoa citada como especialista em IA "
     "para comentar o caso e POSITIVA, porque a acusacao e contra a "
     "Meta, nao contra ela.\n"
     "  6) A pessoa e elogiada ou recebe premio -> POSITIVA.\n\n"
-    "REGRA QUE RESOLVE O ERRO MAIS COMUM:\n"
-    "Ser citado como especialista NAO e automaticamente positivo. Boa parte "
-    "dessas materias e factual, e citar o nome so diz de onde veio a "
-    "informacao.\n\n"
-    "Exemplos do caso 2, que e o que mais se repete:\n"
+    "Exemplos do caso 2 (NEUTRA):\n"
     "  'Entre os palestrantes confirmados estao A, B e Kenneth Correa' -> NEUTRA\n"
     "  'Assuntos Relacionados: Kenneth Correa' -> NEUTRA\n"
-    "Exemplos do caso 1 (POSITIVA, mesmo com assunto negativo):\n"
+    "  'Kenneth Correa foi citado na materia' -> NEUTRA\n"
+    "Exemplos do caso 1 (POSITIVA, mesmo com assunto negativo ou alheio):\n"
     "  'Para Kenneth Correa, professor da FGV, os modelos chineses "
     "passaram a ocupar posicao relevante' -> POSITIVA\n"
     "  'Segundo o especialista Kenneth Correa, enviar foto para uma IA "
@@ -245,13 +269,11 @@ PROMPT_REGRAS = (
     "decidiram lances na Copa' -> POSITIVA (assunto nao tem relacao com "
     "ele, mas a opiniao tecnica agregou)\n"
     "Exemplos do caso 4 (NEUTRA):\n"
-    "  'Kenneth Correa foi assaltado na avenue XYZ' -> NEUTRA (vitima, nao e culpa dele)\n"
+    "  'Kenneth Correa foi assaltado na avenida XYZ' -> NEUTRA (vitima, nao e culpa dele)\n"
     "Exemplos do caso 5 (NEGATIVA):\n"
     "  'Advogado afirma que Kenneth Correa participava do esquema' -> NEGATIVA\n"
     "  'Investigacao cita o nome de Kenneth Correa' -> NEGATIVA "
     "(perto de crime, mesmo sem acusacao direta)\n\n"
-    "NUNCA responda POSITIVA apenas porque o tema da noticia e positivo ou "
-    "porque a pessoa e citada. Responda POSITIVA apenas nos casos 1 e 6.\n\n"
     "Responda com UMA PALAVRA: POSITIVA, NEGATIVA ou NEUTRA."
 )
 
