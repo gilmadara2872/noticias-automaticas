@@ -13,12 +13,12 @@ TG_TOKEN = os.environ.get("TG_TOKEN", "")
 TG_CHAT_ID = os.environ.get("TG_CHAT_ID", "")
 LLM_API_KEY = os.environ.get("LLM_API_KEY", "")
 LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "https://openrouter.ai/api/v1")
-# O id anterior, "Qwen/Qwen2.5-7B-Instruct", NAO existe no OpenRouter (o
-# correto tem hifen: qwen/qwen-2.5-7b-instruct) e o modelo antigo foi
-# descontinuado. Este default e o que existe hoje e custa zero: o tier
-# gratuito do OpenRouter da 50 requisicoes/dia por conta, e o sistema usa
-# cerca de 5 por dia.
-LLM_MODEL = os.environ.get("LLM_MODEL", "qwen/qwen3.8-27b:free")
+# O modelo principal anterior (qwen/qwen3.8-27b:free) saiu do ar gratuito
+# em 2026-10-05. O novo principal e o nvidia/nemotron-3-super-120b-a12b:free,
+# que e o maior modelo gratuito disponivel e tem bom desempenho em
+# classificacao de texto. O tier gratuito do OpenRouter da 50 requisicoes/dia
+# por conta, e o sistema usa cerca de 5 por dia.
+LLM_MODEL = os.environ.get("LLM_MODEL", "nvidia/nemotron-3-super-120b-a12b:free")
 
 TABLE = "monitored_news"
 

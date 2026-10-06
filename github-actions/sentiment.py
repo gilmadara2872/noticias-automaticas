@@ -143,7 +143,10 @@ def fetch_ddg_snippet(url):
 # normal isso nao é problema, porque a rotina so classifica materia
 # NOVA (sentimento is null), e sao poucas por dia.
 MODELOS_RESERVA = [
-    "google/gemma-4-31b-it:free",
+    "nvidia/nemotron-3-ultra-550b-a55b:free",
+    "dots-studio/dots-3-note-preview:free",
+    "liquid/lfm-2.5-2.6b:free",
+    "cohere/north-mini-code:free",
     "inclusionai/ling-3.0-flash-sante:free",
 ]
 
@@ -303,9 +306,9 @@ def llm_sentiment(title, content, keyword=""):
     except Exception as e:
         print(f"    IA respondeu em formato inesperado: {e} | {str(resp)[:120]}")
         return None
-    for s in ("POSITIVA", "NEGATIVA", "NEUTRA"):
+    for s in ("POSITIVA", "NEGATIVA", "NEUTRA", "NEUTRO"):
         if s in txt:
-            return s
+            return "NEUTRA" if s == "NEUTRO" else s
     print(f"    IA respondeu sem classificacao clara: {txt[:80]!r}")
     return None
 

@@ -1,4 +1,4 @@
 # Lote opcional de reclassificacao: um link por linha.
 # VAZIO de proposito: sem links aqui, o sentiment.py reclassifica
-# todas as noticias do banco. Para reclassificar so algumas, Coloque
+# todas as noticias do banco. Para reclassificar so algumas, coloque
 # os links neste arquivo (um por linha) e faca o commit.
