@@ -57,6 +57,15 @@ jobs:
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
           LLM_MODEL: ${{ secrets.LLM_MODEL }}
+          # Opcional: sobrescreve a lista MODELOS_RESERVA do sentiment.py.
+          # Modelos :free separados por ";". Sem o secret, vale a lista do codigo.
+          LLM_MODEL_RESERVA: ${{ secrets.LLM_MODEL_RESERVA }}
+          # O sentiment.py avisa no Telegram quando uma classificacao cai no
+          # lexico de reserva ou quando a materia vem sem texto. Sem estes
+          # dois, avisa_telegram() desiste e imprime so no console - o alerta
+          # nunca chega ao cliente. O reclassify.yml ja passava; aqui faltava.
+          TG_TOKEN: ${{ secrets.TG_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: python sentiment.py
 
   send:

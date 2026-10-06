@@ -17,6 +17,8 @@ jobs:
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
           LLM_MODEL: ${{ secrets.LLM_MODEL }}
+          # Opcional: sobrescreve a lista MODELOS_RESERVA do sentiment.py.
+          LLM_MODEL_RESERVA: ${{ secrets.LLM_MODEL_RESERVA }}
           # O sentiment.py avisa no Telegram quando alguma classificacao cai
           # no lexico de reserva. Sem estes dois o aviso ia para uma URL vazia
           # e o Telegram respondia 404 - o alarme sumia sem deixar rastro.
