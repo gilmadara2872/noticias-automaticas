@@ -260,7 +260,14 @@ Registrados para ninguém descobrir tarde:
   aparecer que ninguém viu ainda. Quem sustenta a proteção é a exigência de
   nome completo, não a posição no texto.
 - **Reserva não resolve cota de conta.** `free-models-per-day` estoura junto
-  para todos os `:free`. Para a rotina normal (só matéria nova) não é
-  problema; reclassificação completa consome ~34 das 50.
+  para todos os `:free`. **Consumo medido:** 1 chamada por matéria — uma
+  reclassificação completa das 34 matérias gasta ~34 das 50 do dia. O uso
+  normal (só matéria nova, `sentimento is null`) gasta ~3–5. O que estoura a
+  cota é reclassificação completa, e ela **não pode rodar duas vezes no mesmo
+  dia** com a mesma chave.
+- **Cota esgotada = alerta no Telegram, não silêncio.** Com a cota zerada o
+  `sentiment.py` cai no léxico (resultado ruim) **e avisa** — é o
+  comportamento desenhado. Se chegar um aviso de "análise parcial", a causa
+  é cota da conta, e o reset é 00:00 UTC (21:00 BRT do dia anterior).
 - **Carga dos segredos:** todos foram expostos em conversa. Rotacionei-os:
   `LLM_API_KEY`, `SUPABASE_KEY`, `TG_TOKEN`, token do GitHub.
