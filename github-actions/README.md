@@ -53,6 +53,11 @@ O princípio central, nas palavras do cliente (refinado em 2026-10-05):
 - **NEGATIVA** — ficou relacionado a tema perigoso (crime, investigação,
   processo), **mesmo sem acusação direta**. *"O que ele estava fazendo perto
   disso?"* Deixar o leitor na dúvida já basta.
+- **POSITIVA** — criações do Kenneth (livros publicados, projetos lançados,
+  etc.) são sempre **POSITIVAS**, mesmo que a menção seja apenas factual.
+  A notícia reporta algo que ele construiu — demonstra autoridade e constrói
+  legado. Exemplo: *"Quem foi Laucídio Coelho"* (menção ao livro publicado
+  por ele) = POSITIVA.
 
 | Situação | Resultado |
 |---|---|

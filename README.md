@@ -128,11 +128,20 @@ O princípio central, nas palavras dele (refinado em 2026-10-05):
 A fronteira POSITIVA × NEUTRA é uma só: **agregou posição técnica, ou o nome
 só aparece citado sem opinião nenhuma?**
 
+**Criações do Kenneth (2026-10-08):** notícias sobre obras criadas pelo
+Kenneth (livros publicados, projetos lançados, etc.) são **POSITIVAS**,
+mesmo quando a menção é apenas factual. A lógica: a notícia reporta algo
+que ele construiu — isso demonstra autoridade e constrói legado. Isso
+inclui menções como *"seu bisneto, que pesquisou documentos e memórias da
+família"* em matéria sobre livro publicado por ele (caso "Quem foi Laucídio
+Coelho", reclassificado de NEUTRA para POSITIVA).
+
 Exemplos que o Kenneth definiu (validados na IA real):
 
 | Situação | Resultado |
 |---|---|
 | Opinião técnica como especialista, mesmo em assunto alheio/negativo | **POSITIVA** |
+| Criações do Kenneth (livros publicados, projetos lançados) | **POSITIVA** — mesmo menção factual |
 | Nome em lista de palestrantes, "Assuntos Relacionados", tag | **NEUTRA** |
 | Vítima de violência (não é culpa nem juízo sobre ele) | **NEUTRA** |
 | Citado perto de crime/investigação, sem acusação direta | **NEGATIVA** |
